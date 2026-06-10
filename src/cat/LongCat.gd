@@ -253,33 +253,33 @@ func update_visuals() -> void:
         else:
             var p1 = path[i]
             var p2 = path[i+1]
-        # 只计算整数并去掉小数点后的误差
-        p1 = p1.round()
-        p2 = p2.round()
-        var dir = (p2 - p1).normalized().round()
-        
-        if i > 0:
-            p1 += dir * 5.0
+            # 只计算整数并去掉小数点后的误差
+            p1 = p1.round()
+            p2 = p2.round()
+            var dir = (p2 - p1).normalized().round()
             
-        if i < path.size() - 2:
-            p2 -= dir * 5.0
-        else:
-            if in_turn:
-                # 转弯时隐藏上半身，直条只需对接到转弯图的边缘 (4.5 的边缘，取 5.0 容错)
-                p2 -= dir * 5.0 
-            else:
-                # 直行时上边身子显示，占据 7 像素。我们留出 6 像素（产生1像素安全重叠）
-                p2 -= dir * 6.0 
+            if i > 0:
+                p1 += dir * 5.0
                 
-        var seg_vec = p2 - p1
-        if seg_vec.dot(dir) > 0.0:
-            var dist = seg_vec.length()
-            seg.region_rect = Rect2(0, 0, 9, dist) 
-            seg.position = p1 + seg_vec / 2.0
-            seg.rotation = dir.angle() - (-PI/2)
-            seg.visible = true
-        else:
-            seg.visible = false
+            if i < path.size() - 2:
+                p2 -= dir * 5.0
+            else:
+                if in_turn:
+                    # 转弯时隐藏上半身，直条只需对接到转弯图的边缘 (4.5 的边缘，取 5.0 容错)
+                    p2 -= dir * 5.0 
+                else:
+                    # 直行时上边身子显示，占据 7 像素。我们留出 6 像素（产生1像素安全重叠）
+                    p2 -= dir * 6.0 
+                    
+            var seg_vec = p2 - p1
+            if seg_vec.dot(dir) > 0.0:
+                var dist = seg_vec.length()
+                seg.region_rect = Rect2(0, 0, 9, dist) 
+                seg.position = p1 + seg_vec / 2.0
+                seg.rotation = dir.angle() - (-PI/2)
+                seg.visible = true
+            else:
+                seg.visible = false
             
     for i in range(turns_data.size()):
         var t_data = turns_data[i]
