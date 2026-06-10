@@ -21,6 +21,7 @@ var turn_tex = preload("res://assets/cat_turn_body.png")
 var turns_data: Array[Dictionary] = []
 var blocked_input_dir: Vector2 = Vector2.ZERO
 var prev_raw_input: Vector2 = Vector2.ZERO
+var auto_turn_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
     path.append(Vector2(0, 0))
@@ -41,9 +42,15 @@ func _process(delta: float) -> void:
         if dist_to_prev > 0.0 and dist_to_prev < MIN_TURN_DIST:
             in_turn = true
             
-    # 如果正在转弯，且没有按下相反方向（后退），则强制继续前进直到转弯完成
-    if in_turn and raw_input != -current_dir:
-        raw_input = current_dir
+    # 转弯时接管输入，确保播放完前进或后退的动画
+    if in_turn:
+        if raw_input == current_dir or raw_input == -current_dir:
+            auto_turn_dir = raw_input
+        elif auto_turn_dir != current_dir and auto_turn_dir != -current_dir:
+            auto_turn_dir = current_dir
+        raw_input = auto_turn_dir
+    else:
+        auto_turn_dir = Vector2.ZERO
         
     var is_tap = false
     if not in_turn:
