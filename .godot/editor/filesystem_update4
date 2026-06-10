@@ -1,1 +1,3 @@
 res://src/cat/LongCat.gd
+res://tests/run_tests.gd
+res://tests/test_fuzzer.gd

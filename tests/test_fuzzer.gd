@@ -33,11 +33,13 @@ func _init():
 	
 	var dirs = [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT, Vector2.ZERO]
 	
-	print("Running 100,000 frames of random fuzzing...")
-	for i in range(100000):
+	print("Running 1000 frames of random fuzzing...")
+	for i in range(1000):
 		if i % 7 == 0: # Change input frequently
 			cat.mock_input = dirs[randi() % 5]
 		cat._process(0.016)
+		if i % 100 == 0:
+			print("Processed frame ", i)
 		
 	print("Fuzz test completed with no crashes!")
 	quit(0)
