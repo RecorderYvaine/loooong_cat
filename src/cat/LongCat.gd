@@ -1,7 +1,7 @@
 extends Node2D
 class_name LongCat
 
-@export var speed: float = 40.0
+@export var speed: float = 50.0
 const MIN_TURN_DIST: float = 9.0
 
 var path: Array[Vector2] = []
@@ -19,9 +19,10 @@ var middle_tex = preload("res://assets/cat_middle_body.png")
 var turn_tex = preload("res://assets/cat_turn_body.png")
 
 var turns_data: Array[Dictionary] = []
+var blocked_input_dir: Vector2 = Vector2.ZERO
+var prev_raw_input: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
-    # 初始的 path[0] 也就是身体生长的起点，直接设在底座(BottomBody)的中心
     path.append(Vector2(0, 0))
     path.append(Vector2(0, -11))
     current_dir = Vector2.UP
@@ -31,14 +32,30 @@ func _ready() -> void:
     update_visuals()
 
 func _process(delta: float) -> void:
-    var input_dir = get_input_dir()
+    var raw_input = get_input_dir()
+    var is_tap = (raw_input != Vector2.ZERO and prev_raw_input != raw_input)
+    prev_raw_input = raw_input
     
+    var input_dir = raw_input
+    
+    # 遇到拐角后的停顿逻辑：要求松开按键或换方向才能继续
+    if raw_input == Vector2.ZERO:
+        blocked_input_dir = Vector2.ZERO
+    elif raw_input == blocked_input_dir:
+        input_dir = Vector2.ZERO
+    else:
+        blocked_input_dir = Vector2.ZERO
+
     if input_dir != Vector2.ZERO:
-        move_cat(input_dir, delta)
+        var step = speed * delta
+        # 短按时至少走 1 像素，方便微调
+        if is_tap:
+            step = max(step, 1.0)
+            
+        move_cat(input_dir, step)
         update_head_frame(input_dir)
     else:
-        # Idle frame (正面脸)
-        head_sprite.frame = 0
+        head_sprite.frame = 0 # Idle
 
     update_visuals()
 
@@ -51,16 +68,15 @@ func get_input_dir() -> Vector2:
 
 func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -> float:
     var allowed_step = requested_step
-    # 不检测最后两段（分别是当前正在伸长的一段，以及它的上一个拐角相连的段，避免一开始就卡住自己）
     var check_points = path.size() - 3 
     
     for i in range(check_points):
         var p1 = path[i]
         var p2 = path[i+1]
-        var thickness = 8.5 # 身体粗 9，给 0.5 的容错，半径 4.25+4.25=8.5
+        var thickness = 8.5 
         
         if dir.x != 0: 
-            if p1.x == p2.x: # 竖向身体
+            if p1.x == p2.x: 
                 var seg_x = p1.x
                 var min_y = min(p1.y, p2.y) - thickness
                 var max_y = max(p1.y, p2.y) + thickness
@@ -69,7 +85,7 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
                         allowed_step = min(allowed_step, seg_x - thickness - start_pos.x)
                     elif dir.x < 0 and start_pos.x >= seg_x + thickness:
                         allowed_step = min(allowed_step, start_pos.x - (seg_x + thickness))
-            else: # 横向身体
+            else: 
                 var min_x = min(p1.x, p2.x) - thickness
                 var max_x = max(p1.x, p2.x) + thickness
                 if abs(start_pos.y - p1.y) < thickness:
@@ -79,7 +95,7 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
                         allowed_step = min(allowed_step, start_pos.x - max_x)
                         
         elif dir.y != 0: 
-            if p1.y == p2.y: # 横向身体
+            if p1.y == p2.y: 
                 var seg_y = p1.y
                 var min_x = min(p1.x, p2.x) - thickness
                 var max_x = max(p1.x, p2.x) + thickness
@@ -88,7 +104,7 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
                         allowed_step = min(allowed_step, seg_y - thickness - start_pos.y)
                     elif dir.y < 0 and start_pos.y >= seg_y + thickness:
                         allowed_step = min(allowed_step, start_pos.y - (seg_y + thickness))
-            else: # 竖向身体
+            else: 
                 var min_y = min(p1.y, p2.y) - thickness
                 var max_y = max(p1.y, p2.y) + thickness
                 if abs(start_pos.x - p1.x) < thickness:
@@ -99,28 +115,21 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
                         
     return max(0.0, allowed_step)
 
-func move_cat(input_dir: Vector2, delta: float) -> void:
+func move_cat(input_dir: Vector2, step: float) -> void:
     var head_pos = path[-1]
     var prev_pos = path[-2]
     var seg_dir = (head_pos - prev_pos).normalized()
     if seg_dir == Vector2.ZERO: seg_dir = current_dir
     
-    var step = speed * delta
-    
     if input_dir == seg_dir:
-        # 向前伸长
         var allowed = get_allowed_step(path[-1], input_dir, step)
         path[-1] += input_dir * allowed
         current_dir = input_dir
     elif input_dir == -seg_dir:
-        # 向后缩回 (无需碰撞检测)
-        path[-1] += input_dir * step
-        
-        # 缩回过弯的吸附逻辑
-        if path.size() > 2:
-            var dist_to_prev = path[-1].distance_to(path[-2])
-            # 把容错像素放大到 6.0，让回退更容易
-            if (path[-1] - path[-2]).dot(seg_dir) <= 0 or dist_to_prev < 6.0:
+        var dist_to_prev = path[-1].distance_to(path[-2])
+        # 缩小判定范围到 step 内：确保缩回时会播放完整的倒放动画，直到完全重合才消除拐角
+        if dist_to_prev <= step:
+            if path.size() > 2:
                 path.pop_back()
                 path[-1] = prev_pos
                 current_dir = (path[-1] - path[-2]).normalized()
@@ -129,15 +138,17 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
                     var last_turn = turns_data.pop_back()
                     if last_turn.node:
                         last_turn.node.queue_free()
-        else:
-            if (path[-1] - path[0]).dot(seg_dir) <= 0:
+                
+                # 记录阻挡方向，迫使用户松开按键后才能向新方向延展
+                blocked_input_dir = input_dir
+            else:
                 path[-1] = path[0] + seg_dir * 1.0
+        else:
+            path[-1] += input_dir * step
     else:
-        # 转弯！
         var dist_from_last_corner = head_pos.distance_to(prev_pos)
         if dist_from_last_corner >= MIN_TURN_DIST:
             var allowed = get_allowed_step(head_pos, input_dir, step)
-            # 只有允许转弯且有移动空间时才真正转弯
             if allowed > 0.0:
                 var prev_dir = seg_dir
                 var cross = prev_dir.x * input_dir.y - prev_dir.y * input_dir.x
@@ -149,14 +160,12 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
                 var turn_sprite = Sprite2D.new()
                 turn_sprite.texture = turn_tex
                 turn_sprite.region_enabled = true
-                # 永远使用下半截 (9 到 18) 的动画帧
                 turn_sprite.region_rect = Rect2(0, 9, 63, 9)
                 
-                # 使用水平翻转来区分顺时针和逆时针
                 if cross > 0:
-                    turn_sprite.flip_h = false # 顺时针不翻转 (原生图是CW)
+                    turn_sprite.flip_h = false 
                 else:
-                    turn_sprite.flip_h = true # 逆时针翻转
+                    turn_sprite.flip_h = true
                     
                 turn_sprite.hframes = 7
                 turn_sprite.position = head_pos
@@ -171,48 +180,56 @@ func update_head_frame(input_dir: Vector2) -> void:
         if seg_dir == Vector2.ZERO: seg_dir = current_dir
         
     if input_dir == seg_dir:
-        head_sprite.frame = 3 # 向上看 (相对猫头是往前)
+        head_sprite.frame = 3 
     elif input_dir == -seg_dir:
-        head_sprite.frame = 4 # 向下看 (相对猫头是往后)
+        head_sprite.frame = 4 
     else:
         head_sprite.frame = 3
 
 func update_visuals() -> void:
     head_group.position = path[-1]
     
-    # 平滑旋转猫头组 (包含头和 TopBody)
     var target_rotation = current_dir.angle() - (-PI/2)
     var current_rot = head_group.rotation
-    
-    # 防止 -PI 和 PI 导致的 360 度大回旋
     var rot_diff = wrapf(target_rotation - current_rot, -PI, PI)
     head_group.rotation = current_rot + rot_diff * (20.0 * get_process_delta_time())
     
-    # 渲染中间连续的身体 (MiddleSegments)
-    for child in middle_segments.get_children():
-        child.queue_free()
+    top_body.position = -current_dir * 5.5
+    top_body.rotation = current_dir.angle() - (-PI/2)
+    
+    # 修复多余像素和错位：复用现有的节点，不再每帧 queue_free() 整个列表
+    var seg_count = path.size() - 1
+    var current_children = middle_segments.get_children()
+    
+    while current_children.size() < seg_count:
+        var seg = Sprite2D.new()
+        seg.texture = middle_tex
+        seg.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+        seg.region_enabled = true
+        middle_segments.add_child(seg)
+        current_children.append(seg)
         
-    for i in range(path.size() - 1):
-        var p1 = path[i]
-        var p2 = path[i+1]
-        var dir = (p2 - p1).normalized()
-        
-        # 只在猫头位置做缩进，给 TopBody 留出空间 (TopBody 远端在头部后方 5.5 + 1.5 = 7.0 的位置)
-        if i == path.size() - 2:
-            p2 -= dir * 7.0 
+    for i in range(current_children.size()):
+        var seg = current_children[i]
+        if i >= seg_count:
+            seg.visible = false
+        else:
+            var p1 = path[i]
+            var p2 = path[i+1]
+            var dir = (p2 - p1).normalized()
             
-        var dist = p1.distance_to(p2)
-        if dist > 0.0:
-            var seg = Sprite2D.new()
-            seg.texture = middle_tex
-            seg.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-            seg.region_enabled = true
-            seg.region_rect = Rect2(0, 0, 9, dist) 
-            seg.position = (p1 + p2) / 2.0
-            seg.rotation = dir.angle() - (-PI/2)
-            middle_segments.add_child(seg)
+            if i == path.size() - 2:
+                p2 -= dir * 7.0 
+                
+            var dist = p1.distance_to(p2)
+            if dist > 0.0:
+                seg.region_rect = Rect2(0, 0, 9, dist) 
+                seg.position = (p1 + p2) / 2.0
+                seg.rotation = dir.angle() - (-PI/2)
+                seg.visible = true
+            else:
+                seg.visible = false
             
-    # 根据距离自动播放转弯处的帧动画
     for i in range(turns_data.size()):
         var t_data = turns_data[i]
         var frame = 0
