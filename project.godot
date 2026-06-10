@@ -1,0 +1,4 @@
+; project.godot
+[application]
+config/name="Long Cat Prototype"
+run/main_scene="res://tests/run_tests.gd"
