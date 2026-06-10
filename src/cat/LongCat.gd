@@ -154,28 +154,28 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 		path[-1] += input_dir * allowed
 		current_dir = input_dir
 	elif input_dir == -seg_dir:
-	    if path.size() == 2:
-	        var dist_to_base = path[-1].distance_to(path[0])
-	        if dist_to_base - step <= 8.0:
-	            path[-1] = path[0] + seg_dir * 8.0
-	            return
-	        else:
-	            path[-1] += input_dir * step
-	    else:
-	        var dist_to_prev = path[-1].distance_to(path[-2])
-	        if dist_to_prev <= step:
-	            path.pop_back()
-	            path[-1] = prev_pos
-	            current_dir = (path[-1] - path[-2]).normalized()
+		if path.size() == 2:
+			var dist_to_base = path[-1].distance_to(path[0])
+			if dist_to_base - step <= 8.0:
+				path[-1] = path[0] + seg_dir * 8.0
+				return
+			else:
+				path[-1] += input_dir * step
+		else:
+			var dist_to_prev = path[-1].distance_to(path[-2])
+			if dist_to_prev <= step:
+				path.pop_back()
+				path[-1] = prev_pos
+				current_dir = (path[-1] - path[-2]).normalized()
 
-	            if turns_data.size() > 0:
-	                var last_turn = turns_data.pop_back()
-	                if last_turn.node:
-	                    last_turn.node.queue_free()
+				if turns_data.size() > 0:
+					var last_turn = turns_data.pop_back()
+					if last_turn.node:
+						last_turn.node.queue_free()
 
-	            blocked_input_dir = input_dir
-	        else:
-	            path[-1] += input_dir * step
+				blocked_input_dir = input_dir
+			else:
+				path[-1] += input_dir * step
 	else:
 		var dist_from_last_corner = head_pos.distance_to(prev_pos)
 		if dist_from_last_corner >= MIN_TURN_DIST:
@@ -218,88 +218,89 @@ func update_head_frame(input_dir: Vector2) -> void:
 		head_sprite.frame = 3
 
 func update_visuals() -> void:
-	var in_turn = false
-	var head_dist = 0.0
-	if path.size() > 2:
-		head_dist = path[-1].distance_to(path[-2])
-		if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
-			in_turn = true
-			
-	# 转弯时隐藏上边身子，避免乱甩
-	top_body.visible = !in_turn
-	
-	# 核心修正：旋转猫头组，并同时根据旋转修正位置，使本地的猫脸中心始终精确对准 path[-1]
-	var target_rotation = current_dir.angle() - (-PI/2)
-	var current_rot = head_group.rotation
-	
-	if in_turn:
-		var prev_dir = (path[-2] - path[-3]).normalized()
-		if prev_dir == Vector2.ZERO: prev_dir = current_dir
-		var prev_rot = prev_dir.angle() - (-PI/2)
-		
-		var progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
-		var diff = wrapf(target_rotation - prev_rot, -PI, PI)
-		head_group.rotation = prev_rot + diff * progress
-	else:
-		var diff = wrapf(target_rotation - current_rot, -PI, PI)
-		head_group.rotation = current_rot + diff * (20.0 * get_process_delta_time())
-		
-	head_group.position = path[-1] - FACE_LOCAL.rotated(head_group.rotation)
-	
-	# 绘制直身子
-	var seg_count = path.size() - 1
-	var current_children = middle_segments.get_children()
-	
-	while current_children.size() < seg_count:
-		var seg = Sprite2D.new()
-		seg.texture = middle_tex
-		seg.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		seg.region_enabled = true
-		middle_segments.add_child(seg)
-		current_children.append(seg)
-		
-	for i in range(current_children.size()):
-		var seg = current_children[i]
-		if i >= seg_count:
-			seg.visible = false
-		else:
-			var p1 = path[i]
-			var p2 = path[i+1]
-			var dir = (p2 - p1).normalized()
-			if dir == Vector2.ZERO:
-				seg.visible = false
-				continue
-				
-			if i > 0:
-				# 为了避免和上一个转角重叠导致错位
-				p1 += dir * 4.5
-				
-			if i == path.size() - 2:
-				if in_turn:
-					# 转弯时完全不画最前段直身子，全部交给转弯贴图
-					seg.visible = false
-					continue
-				else:
-					# 不在转弯时，直身子准确连接到猫头上边身子的底端。
-					# 由于我们围绕着脸中心 (距离底端 8 像素) 停靠，完美扣减 8.0
-					p2 -= dir * 8.0
-			else:
-				p2 -= dir * 4.5
-				
-			var seg_vec = p2 - p1
-			if seg_vec.dot(dir) > 0.0:
-				var dist = seg_vec.length()
-				seg.region_rect = Rect2(0, 0, 9, dist) 
-				seg.position = (p1 + p2) / 2.0
-				seg.rotation = dir.angle() - (-PI/2)
-				seg.visible = true
-			else:
-				seg.visible = false
-			
-	for i in range(turns_data.size()):
-		var t_data = turns_data[i]
-		var frame = 0
-		if i == turns_data.size() - 1:
-			var dist = path[-1].distance_to(t_data.node.position)
-			frame = clamp(6 - int((dist / MIN_TURN_DIST) * 7.0), 0, 6)
-		t_data.node.frame = frame
+    var in_turn = false
+    var hiding_top_body = false
+    var head_dist = 0.0
+    if path.size() > 2:
+        head_dist = path[-1].distance_to(path[-2])
+        if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
+            in_turn = true
+        if head_dist >= 0.0 and head_dist < 12.5:
+            hiding_top_body = true
+
+    # 转弯及刚出弯时隐藏上边身子，避免直直的身体块戳进弯道图片里
+    top_body.visible = !hiding_top_body
+
+    # 核心修正：旋转猫头组，并同时根据旋转修正位置，使本地的猫脸中心始终精确对准 path[-1]
+    var target_rotation = current_dir.angle() - (-PI/2)
+    var current_rot = head_group.rotation
+
+    if in_turn:
+        var prev_dir = (path[-2] - path[-3]).normalized()
+        if prev_dir == Vector2.ZERO: prev_dir = current_dir
+        var prev_rot = prev_dir.angle() - (-PI/2)
+
+        var progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
+        var diff = wrapf(target_rotation - prev_rot, -PI, PI)
+        head_group.rotation = prev_rot + diff * progress
+    else:
+        var diff = wrapf(target_rotation - current_rot, -PI, PI)
+        head_group.rotation = current_rot + diff * (20.0 * get_process_delta_time())
+
+    head_group.position = path[-1] - FACE_LOCAL.rotated(head_group.rotation)
+
+    # 绘制直身子
+    var seg_count = path.size() - 1
+    var current_children = middle_segments.get_children()
+
+    while current_children.size() < seg_count:
+        var seg = Sprite2D.new()
+        seg.texture = middle_tex
+        seg.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+        seg.region_enabled = true
+        middle_segments.add_child(seg)
+        current_children.append(seg)
+
+    for i in range(current_children.size()):
+        var seg = current_children[i]
+        if i >= seg_count:
+            seg.visible = false
+        else:
+            var p1 = path[i]
+            var p2 = path[i+1]
+            var dir = (p2 - p1).normalized()
+            if dir == Vector2.ZERO:
+                seg.visible = false
+                continue
+
+            if i > 0:
+                # 为了避免和上一个转角重叠导致错位
+                p1 += dir * 4.5
+
+            if i == path.size() - 2:
+                if hiding_top_body:
+                    # 当 TopBody 被隐藏时，用底层 MiddleSegment 无缝填补空隙，直达后脑勺 (距脸中心 5.0 像素)
+                    p2 -= dir * 5.0
+                else:
+                    # 当 TopBody 显示时，直身子准确连接到 TopBody 的底端 (距脸中心 8.0 像素)
+                    p2 -= dir * 8.0
+            else:
+                p2 -= dir * 4.5
+
+            var seg_vec = p2 - p1
+            if seg_vec.dot(dir) > 0.0:
+                var dist = seg_vec.length()
+                seg.region_rect = Rect2(0, 0, 9, dist) 
+                seg.position = (p1 + p2) / 2.0
+                seg.rotation = dir.angle() - (-PI/2)
+                seg.visible = true
+            else:
+                seg.visible = false
+
+    for i in range(turns_data.size()):
+        var t_data = turns_data[i]
+        var frame = 0
+        if i == turns_data.size() - 1:
+            var dist = path[-1].distance_to(t_data.node.position)
+            frame = clamp(6 - int((dist / MIN_TURN_DIST) * 7.0), 0, 6)
+        t_data.node.frame = frame
