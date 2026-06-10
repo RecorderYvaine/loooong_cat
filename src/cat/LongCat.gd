@@ -1,7 +1,7 @@
 extends Node2D
 class_name LongCat
 
-@export var speed: float = 50.0
+@export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
 
 var path: Array[Vector2] = []
@@ -27,8 +27,7 @@ func _ready() -> void:
     turn_segments.position = Vector2.ZERO
     middle_segments.position = Vector2.ZERO
     
-    # 路径完全基于“连接点”计算，BottomBody 的顶部中心即为起点
-    var connection_point = bottom_sprite.position + Vector2(0, -2.5)
+    var connection_point = Vector2(0, -2.5) # BottomBody.position (0,0) + top offset
     path.append(connection_point)
     path.append(connection_point)
     current_dir = Vector2.UP
@@ -37,14 +36,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
     var raw_input = get_input_dir()
     
-    # 检测是否在转弯中
     var in_turn = false
+    var head_dist = 0.0
     if path.size() > 2:
-        var dist_to_prev = path[-1].distance_to(path[-2])
-        if dist_to_prev >= 0.0 and dist_to_prev < MIN_TURN_DIST:
+        head_dist = path[-1].distance_to(path[-2])
+        if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
             in_turn = true
             
-    # 转弯时强制接管输入，完成动画
     if in_turn:
         if raw_input == current_dir or raw_input == -current_dir:
             auto_turn_dir = raw_input
@@ -213,11 +211,9 @@ func update_visuals() -> void:
         if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
             in_turn = true
             
-    # 计算实际的 HeadGroup 位置：基于头部连接点 path[-1] 倒推
-    head_group.position = path[-1] - current_dir * 4.5
-    top_body.visible = true
+    head_group.position = path[-1]
+    top_body.visible = !in_turn
     
-    # 平滑旋转：在前进的 9 个像素内按进度映射角度
     var target_rotation = current_dir.angle() - (-PI/2)
     if in_turn:
         var prev_dir = (path[-2] - path[-3]).normalized()
@@ -253,16 +249,14 @@ func update_visuals() -> void:
                 seg.visible = false
                 continue
                 
-            # 完美的几何扣边：只在两端是拐角时缩进 4.5 像素避开转角中心
-            # 起点 path[0] 和终点 path[-1] 已经是精确的连接点，无需缩进！
-            if i > 0:
-                p1 += dir * 4.5
-            if i < path.size() - 2:
-                p2 -= dir * 4.5
+            # 完全不缩进，交给 Z-index 5 遮盖接缝
+            if i == path.size() - 2 and in_turn:
+                # 在拐弯时没有 TopBody 遮挡，如果中间身子还不到 HeadGroup 的底部边缘就会漏光。
+                # 由于 TopBody 是 3px 并且被隐藏了，可以适当延伸 3.0 像素补充进去。
+                p2 += dir * 3.0
                 
-            var seg_vec = p2 - p1
-            if seg_vec.dot(dir) > 0.0:
-                var dist = seg_vec.length()
+            var dist = p1.distance_to(p2)
+            if dist > 0.0:
                 seg.region_rect = Rect2(0, 0, 9, dist) 
                 seg.position = (p1 + p2) / 2.0
                 seg.rotation = dir.angle() - (-PI/2)
