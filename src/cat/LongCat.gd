@@ -1,7 +1,7 @@
 extends Node2D
 class_name LongCat
 
-@export var speed: float = 50.0
+@export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
 
 var path: Array[Vector2] = []
@@ -22,26 +22,26 @@ var turns_data: Array[Dictionary] = []
 var blocked_input_dir: Vector2 = Vector2.ZERO
 var prev_raw_input: Vector2 = Vector2.ZERO
 var auto_turn_dir: Vector2 = Vector2.ZERO
-var movement_accumulator: float = 0.0
 
 func _ready() -> void:
-    path.append(Vector2(0, 0))
-    path.append(Vector2(0, -9))
+    # 用户在场景中完美拼接了初始状态。
+    # HeadGroup 位于 (0, 2)，所以我们将路径起点设为 (0, 2)
+    path.append(Vector2(0, 2))
+    path.append(Vector2(0, 2))
     current_dir = Vector2.UP
-    
-    bottom_sprite.position = path[0]
-    tail_sprite.position = bottom_sprite.position + Vector2(7.5, 0)
     update_visuals()
 
 func _process(delta: float) -> void:
     var raw_input = get_input_dir()
     
     var in_turn = false
+    var head_dist = 0.0
     if path.size() > 2:
-        var dist_to_prev = path[-1].distance_to(path[-2])
-        if dist_to_prev > 0.0 and dist_to_prev < MIN_TURN_DIST:
+        head_dist = path[-1].distance_to(path[-2])
+        if head_dist > 0.0 and head_dist < MIN_TURN_DIST:
             in_turn = true
             
+    # 转弯时强制接管输入，完成动画
     if in_turn:
         if raw_input == current_dir or raw_input == -current_dir:
             auto_turn_dir = raw_input
@@ -66,19 +66,14 @@ func _process(delta: float) -> void:
         blocked_input_dir = Vector2.ZERO
 
     if input_dir != Vector2.ZERO:
-        movement_accumulator += speed * delta
-        var step = floor(movement_accumulator)
-        
-        if is_tap and step < 1.0:
-            step = 1.0
+        var step = speed * delta
+        if is_tap:
+            step = max(step, 1.0)
             
-        if step >= 1.0:
-            movement_accumulator -= step
-            move_cat(input_dir, step)
-            update_head_frame(input_dir)
+        move_cat(input_dir, step)
+        update_head_frame(input_dir)
     else:
         head_sprite.frame = 0 
-        movement_accumulator = 0.0
 
     update_visuals()
 
@@ -150,7 +145,6 @@ func move_cat(input_dir: Vector2, step: float) -> void:
         current_dir = input_dir
     elif input_dir == -seg_dir:
         var dist_to_prev = path[-1].distance_to(path[-2])
-        # 缩小判定范围到 step 内：确保缩回时会播放完整的倒放动画，直到完全重合才消除拐角
         if dist_to_prev <= step:
             if path.size() > 2:
                 path.pop_back()
@@ -162,7 +156,6 @@ func move_cat(input_dir: Vector2, step: float) -> void:
                     if last_turn.node:
                         last_turn.node.queue_free()
                 
-                # 记录阻挡方向，迫使用户松开按键后才能向新方向延展
                 blocked_input_dir = input_dir
             else:
                 path[-1] = path[0] + seg_dir * 1.0
@@ -207,7 +200,6 @@ func update_head_frame(input_dir: Vector2) -> void:
     elif input_dir == -seg_dir:
         head_sprite.frame = 4 
     else:
-        # Turning, keep frame 3 (forward)
         head_sprite.frame = 3
 
 func update_visuals() -> void:
@@ -253,29 +245,24 @@ func update_visuals() -> void:
         else:
             var p1 = path[i]
             var p2 = path[i+1]
-            # 只计算整数并去掉小数点后的误差
-            p1 = p1.round()
-            p2 = p2.round()
-            var dir = (p2 - p1).normalized().round()
-            
-            if i > 0:
-                p1 += dir * 5.0
+            var dir = (p2 - p1).normalized()
+            if dir == Vector2.ZERO:
+                seg.visible = false
+                continue
                 
-            if i < path.size() - 2:
-                p2 -= dir * 5.0
-            else:
+            # 完全不缩进，从中心到中心画，接缝问题交给 Z-Index 和转角精灵去遮盖
+            if i == path.size() - 2:
                 if in_turn:
-                    # 转弯时隐藏上半身，直条只需对接到转弯图的边缘 (4.5 的边缘，取 5.0 容错)
-                    p2 -= dir * 5.0 
+                    # 转弯时隐藏了 TopBody，补齐到 HeadSprite 的底端 (约 7.0 像素)
+                    p2 += dir * 7.0
                 else:
-                    # 直行时上边身子显示，占据 7 像素。我们留出 6 像素（产生1像素安全重叠）
-                    p2 -= dir * 6.0 
-                    
-            var seg_vec = p2 - p1
-            if seg_vec.dot(dir) > 0.0:
-                var dist = seg_vec.length()
+                    # 平时补齐到 TopBody 的底端 (4.5 像素)
+                    p2 += dir * 4.5
+                
+            var dist = p1.distance_to(p2)
+            if dist > 0.0:
                 seg.region_rect = Rect2(0, 0, 9, dist) 
-                seg.position = p1 + seg_vec / 2.0
+                seg.position = (p1 + p2) / 2.0
                 seg.rotation = dir.angle() - (-PI/2)
                 seg.visible = true
             else:

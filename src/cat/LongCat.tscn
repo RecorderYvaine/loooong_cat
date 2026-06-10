@@ -1,36 +1,37 @@
-[gd_scene load_steps=7 format=3 uid="uid://cx4x2xxxxxx"]
+[gd_scene format=3 uid="uid://dbl0wq5j18c5k"]
 
-[ext_resource type="Script" path="res://src/cat/LongCat.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/cat_bottom_body.png" id="2_bottom"]
-[ext_resource type="Texture2D" path="res://assets/cat_tail.png" id="3_tail"]
-[ext_resource type="Texture2D" path="res://assets/cat_head.png" id="4_head"]
-[ext_resource type="Texture2D" path="res://assets/cat_upper_body.png" id="5_top"]
+[ext_resource type="Script" uid="uid://ceevxrcn0lhp3" path="res://src/cat/LongCat.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://o5dqocibjt8k" path="res://assets/cat_bottom_body.png" id="2_bottom"]
+[ext_resource type="Texture2D" uid="uid://c0mbb0ohnf16p" path="res://assets/cat_tail.png" id="3_tail"]
+[ext_resource type="Texture2D" uid="uid://du8j805te3h8b" path="res://assets/cat_head.png" id="4_head"]
+[ext_resource type="Texture2D" uid="uid://dlo7x8df6grod" path="res://assets/cat_upper_body.png" id="5_top"]
 
-[node name="LongCat" type="Node2D"]
+[node name="LongCat" type="Node2D" unique_id=192947933]
 script = ExtResource("1_script")
 
-[node name="TailSprite" type="Sprite2D" parent="."]
+[node name="TailSprite" type="Sprite2D" parent="." unique_id=2132451528]
 z_index = 5
-position = Vector2(-7.5, 0)
+position = Vector2(7, -1)
 texture = ExtResource("3_tail")
 
-[node name="BottomBody" type="Sprite2D" parent="."]
+[node name="BottomBody" type="Sprite2D" parent="." unique_id=920308668]
 z_index = 5
 texture = ExtResource("2_bottom")
 
-[node name="MiddleSegments" type="Node2D" parent="."]
-z_index = 0
+[node name="MiddleSegments" type="Node2D" parent="." unique_id=837380837]
 
-[node name="TurnSegments" type="Node2D" parent="."]
+[node name="TurnSegments" type="Node2D" parent="." unique_id=2076721954]
 z_index = 5
 
-[node name="HeadGroup" type="Node2D" parent="."]
+[node name="HeadGroup" type="Node2D" parent="." unique_id=1309392160]
 z_index = 10
+position = Vector2(0, 2)
 
-[node name="TopBody" type="Sprite2D" parent="HeadGroup"]
-position = Vector2(0, 5.5)
+[node name="TopBody" type="Sprite2D" parent="HeadGroup" unique_id=1465233619]
+position = Vector2(0, -6)
 texture = ExtResource("5_top")
 
-[node name="HeadSprite" type="Sprite2D" parent="HeadGroup"]
+[node name="HeadSprite" type="Sprite2D" parent="HeadGroup" unique_id=1269927875]
+position = Vector2(0, -12)
 texture = ExtResource("4_head")
 hframes = 5
