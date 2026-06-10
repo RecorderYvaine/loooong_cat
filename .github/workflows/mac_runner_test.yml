@@ -5,18 +5,18 @@ on:
 
 jobs:
   test:
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       
       - name: Setup Godot
-        uses: chickensoft-games/setup-godot@v1
-        with:
-          version: 4.6.3
-          use-dotnet: false
+        run: brew install --cask godot
           
       - name: Verify Godot
-        run: godot --version
+        run: |
+          command -v godot
+          file "$(command -v godot)"
+          godot --version
 
       - name: Run Syntax Check
         run: godot --headless --path . --script tests/run_tests.gd
