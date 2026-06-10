@@ -147,6 +147,9 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
 						
 	return max(0.0, allowed_step)
 
+func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
+	return get_allowed_step(start_pos, dir, MIN_TURN_DIST) >= MIN_TURN_DIST
+
 func move_cat(input_dir: Vector2, step: float) -> void:
 	var head_pos = path[-1]
 	var prev_pos = path[-2]
@@ -183,6 +186,10 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 	else:
 		var dist_from_last_corner = head_pos.distance_to(prev_pos)
 		if dist_from_last_corner >= MIN_TURN_DIST:
+			if not can_start_turn(head_pos, input_dir):
+				blocked_input_dir = input_dir
+				return
+			
 			var allowed = get_allowed_step(head_pos, input_dir, step)
 			if allowed > 0.0:
 				var prev_dir = seg_dir

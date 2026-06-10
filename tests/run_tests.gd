@@ -14,6 +14,8 @@ func run():
 	print("Syntax check passed.")
 	if not await run_turn_visual_state_checks():
 		return
+	if not await run_blocked_turn_checks():
+		return
 	print("ALL TESTS PASSED")
 	quit(0)
 
@@ -77,6 +79,57 @@ func run_turn_visual_state_checks() -> bool:
 	if not assert_half_pixel(latest_turn.position.x, "Latest turn sprite x-position is pixel-centered"):
 		return false
 	if not assert_half_pixel(latest_turn.position.y, "Latest turn sprite y-position is pixel-centered"):
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_blocked_turn_checks() -> bool:
+	print("Running blocked turn checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(17.0, -40.0),
+		Vector2(17.0, -10.0),
+	]
+	cat.current_dir = Vector2.DOWN
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	var path_before = cat.path.duplicate()
+	cat.move_cat(Vector2.LEFT, 1.0)
+
+	if cat.path.size() != path_before.size():
+		printerr("FAILED: blocked turn should not append a new path point. path=", cat.path)
+		quit(1)
+		return false
+	if cat.path[-1] != path_before[-1]:
+		printerr("FAILED: blocked turn should not move the head. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: blocked turn should preserve current direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 0:
+		printerr("FAILED: blocked turn should not create turn data. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+	if cat.blocked_input_dir != Vector2.LEFT:
+		printerr("FAILED: blocked turn should mark input as blocked. blocked=", cat.blocked_input_dir)
+		quit(1)
 		return false
 
 	cat.queue_free()
