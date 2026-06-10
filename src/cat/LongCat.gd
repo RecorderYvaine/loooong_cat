@@ -13,6 +13,7 @@ var current_dir: Vector2 = Vector2.UP
 @onready var middle_segments = $MiddleSegments
 @onready var turn_segments = $TurnSegments
 @onready var bottom_sprite = $BottomBody
+@onready var tail_sprite = $TailSprite
 
 var middle_tex = preload("res://assets/cat_middle_body.png")
 var turn_tex = preload("res://assets/cat_turn_body.png")
@@ -20,13 +21,13 @@ var turn_tex = preload("res://assets/cat_turn_body.png")
 var turns_data: Array[Dictionary] = []
 
 func _ready() -> void:
-    # 让初始的 path[0] 也就是身体生长的起点，对齐在底座(BottomBody)的偏左侧
-    path.append(Vector2(0, 11))
+    # 初始的 path[0] 也就是身体生长的起点，直接设在底座(BottomBody)的中心
     path.append(Vector2(0, 0))
+    path.append(Vector2(0, -11))
     current_dir = Vector2.UP
     
-    # 将底座稍微往右偏移，这样轨迹生成时就相当于靠在它的最左边
-    bottom_sprite.position = path[0] + Vector2(3, 0)
+    bottom_sprite.position = path[0]
+    tail_sprite.position = bottom_sprite.position + Vector2(-7.5, 0)
     update_visuals()
 
 func _process(delta: float) -> void:
@@ -135,17 +136,6 @@ func update_visuals() -> void:
         var p2 = path[i+1]
         var dir = (p2 - p1).normalized()
         
-        # 缩进处理，避免与拐角、头、尾重叠
-        if i > 0:
-            p1 += dir * 4.5
-        else:
-            p1 += dir * 2.5
-            
-        if i < path.size() - 2:
-            p2 -= dir * 4.5
-        else:
-            p2 -= dir * 8.0
-            
         var dist = p1.distance_to(p2)
         if dist > 0.0:
             var seg = Sprite2D.new()

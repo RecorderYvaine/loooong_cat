@@ -16,12 +16,12 @@ config/features=PackedStringArray("4.6")
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
-window/size/window_width_override=1280
-window/size/window_height_override=720
+window/size/viewport_width=300
+window/size/viewport_height=200
+window/size/window_width_override=3000
+window/size/window_height_override=2000
 window/stretch/mode="viewport"
-window/stretch/aspect="keep"
+window/ios/allow_high_refresh_rate=false
 
 [rendering]
 
