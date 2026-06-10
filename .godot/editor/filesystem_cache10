@@ -1,11 +1,12 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1781064970
+::res://::1781069704
 issue2.png::CompressedTexture2D::4994070807328981791::1781062054::1781062061::1::::<><><>0<>0<>6d643e11ba38f3944072571978ff8ae4<>res://.godot/imported/issue2.png-7f8b3a70377cc28d98453f4716b5191e.ctex::
 issue3.png::CompressedTexture2D::7420982267090908619::1781062963::1781062966::1::::<><><>0<>0<>5d97c13a217b2f6717c2e2d4f80561bb<>res://.godot/imported/issue3.png-335a3d450e42d19aca62215cf80806cb.ctex::
 issue4.png::CompressedTexture2D::5656571690570780439::1781063380::1781063450::1::::<><><>0<>0<>8ac891d98f108d10ecb2a34e0cf85c73<>res://.godot/imported/issue4.png-6277c177064e80f487fc74e87d6e3f08.ctex::
 issue5.png::CompressedTexture2D::4021439679169671500::1781064145::1781064155::1::::<><><>0<>0<>ed972a81acac3e2185e1517214139aca<>res://.godot/imported/issue5.png-a44c4f28ddbbe3619f5ae14920a465fd.ctex::
 issue5b.png::CompressedTexture2D::7121232244631749073::1781064970::1781065093::1::::<><><>0<>0<>7d39fd4c6042fe36e5f6b48064239177<>res://.godot/imported/issue5b.png-f2bd547150d45563a27350de5674974e.ctex::
 issue6.png::CompressedTexture2D::6106431152081190327::1781064970::1781065093::1::::<><><>0<>0<>c5e45e0998c4ee9034a2317439aaa853<>res://.godot/imported/issue6.png-627766b3138b5a3aeb9cc5bf9cc3f2c0.ctex::
+issue7.png::CompressedTexture2D::2353112718694766308::1781069435::1781070349::1::::<><><>0<>0<>50e79c3b0686613fc4786b1613343e06<>res://.godot/imported/issue7.png-4005a562cc4e5aeff7372a921ac06a39.ctex::
 issue.png::CompressedTexture2D::8922552840969441392::1781060936::1781061248::1::::<><><>0<>0<>5ff8f1f887a4ddb27c75283b7a70f461<>res://.godot/imported/issue.png-2669063c821de0ff67c9f2d0cf024026.ctex::
 ::res://assets/::1781061860
 cat_bottom_body.png::CompressedTexture2D::1044786606016731792::1781061794::1781061860::1::::<><><>0<>0<>f3a959af71359193c2387fc43004a55e<>res://.godot/imported/cat_bottom_body.png-3ae4f1f3acc1804e1578a20182b4e9c0.ctex::
@@ -22,9 +23,9 @@ cat_upper_body.png::CompressedTexture2D::7962226374856663203::1781059509::178105
 2026-06-10-long-cat-prototype-design.md::TextFile::-1::1781057280::0::1::::<><><>0<>0<><>::
 ::res://src/::1781060444
 Main.tscn::PackedScene::1519423373838178958::1781060444::0::1::::<><><>0<>0<><>::res://src/cat/LongCat.tscn
-::res://src/cat/::1781059880
-LongCat.gd::GDScript::5063171279673550270::1781064266::0::1::::LongCat<>Node2D<><>0<>0<><>::
-LongCat.tscn::PackedScene::-1::1781063195::0::1::::<><><>0<>0<><>::
+::res://src/cat/::1781068925
+LongCat.gd::GDScript::5063171279673550270::1781069906::0::1::::LongCat<>Node2D<><>0<>0<><>::
+LongCat.tscn::PackedScene::7253717149459761110::1781069832::0::1::::<><><>0<>0<><>::uid://ceevxrcn0lhp3::::res://src/cat/LongCat.gd<>uid://o5dqocibjt8k::::res://assets/cat_bottom_body.png<>uid://c0mbb0ohnf16p::::res://assets/cat_tail.png<>uid://du8j805te3h8b::::res://assets/cat_head.png<>uid://dlo7x8df6grod::::res://assets/cat_upper_body.png
 ::res://src/level/::1781058697
 Button.gd::GDScript::5964631727603716882::1781058001::0::1::::LevelButton<>Area2D<><>0<>0<><>::
 Door.gd::GDScript::8561375652684027516::1781058006::0::1::::LevelDoor<>StaticBody2D<><>0<>0<><>::

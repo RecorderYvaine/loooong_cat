@@ -11,12 +11,15 @@ script = ExtResource("1_script")
 
 [node name="TailSprite" type="Sprite2D" parent="." unique_id=2132451528]
 z_index = 5
-position = Vector2(7.5, 0)
+position = Vector2(5, -1)
 texture = ExtResource("3_tail")
+centered = false
 
 [node name="BottomBody" type="Sprite2D" parent="." unique_id=920308668]
 z_index = 5
+position = Vector2(-4, 0)
 texture = ExtResource("2_bottom")
+centered = false
 
 [node name="MiddleSegments" type="Node2D" parent="." unique_id=837380837]
 
@@ -28,10 +31,12 @@ z_index = 10
 position = Vector2(0, -2.5)
 
 [node name="TopBody" type="Sprite2D" parent="HeadGroup" unique_id=1465233619]
-position = Vector2(0, -1.5)
+position = Vector2(-4, -0.5)
 texture = ExtResource("5_top")
+centered = false
 
 [node name="HeadSprite" type="Sprite2D" parent="HeadGroup" unique_id=1269927875]
-position = Vector2(0, -8)
+position = Vector2(-6, -10.5)
 texture = ExtResource("4_head")
+centered = false
 hframes = 5

@@ -4,6 +4,10 @@ class_name LongCat
 @export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
 
+# 根据用户在编辑器里配置的 non-centered Sprite 参数，计算出绝对的连接点偏移：
+# TopBody 位置 (-4, -0.5)，高度 3，所以它的底部中心在本地坐标 (0.5, 2.5)。
+const CONNECTION_LOCAL = Vector2(0.5, 2.5)
+
 var path: Array[Vector2] = []
 var current_dir: Vector2 = Vector2.UP
 
@@ -24,12 +28,16 @@ var prev_raw_input: Vector2 = Vector2.ZERO
 var auto_turn_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
+    # 彻底信任编辑器里的拼装！绝对不乱改 BottomBody 和 TailSprite 的坐标。
     turn_segments.position = Vector2.ZERO
     middle_segments.position = Vector2.ZERO
     
-    var connection_point = Vector2(0, -2.5) # BottomBody.position (0,0) + top offset
-    path.append(connection_point)
-    path.append(connection_point)
+    # BottomBody 的位置是 (-4, 0)，宽度为 9，高度为 5。
+    # 它的顶部中心点是 (-4 + 4.5, 0) = (0.5, 0.0)。
+    var start_point = Vector2(0.5, 0.0)
+    
+    path.append(start_point)
+    path.append(start_point)
     current_dir = Vector2.UP
     update_visuals()
 
@@ -211,10 +219,13 @@ func update_visuals() -> void:
         if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
             in_turn = true
             
-    head_group.position = path[-1]
+    # 转弯时隐藏上边身子
     top_body.visible = !in_turn
     
+    # 核心修正：旋转猫头组，并同时根据旋转修正位置，使本地的脖子连接点始终精确对准 path[-1]
     var target_rotation = current_dir.angle() - (-PI/2)
+    var current_rot = head_group.rotation
+    
     if in_turn:
         var prev_dir = (path[-2] - path[-3]).normalized()
         if prev_dir == Vector2.ZERO: prev_dir = current_dir
@@ -224,8 +235,12 @@ func update_visuals() -> void:
         var diff = wrapf(target_rotation - prev_rot, -PI, PI)
         head_group.rotation = prev_rot + diff * progress
     else:
-        head_group.rotation = target_rotation
+        var diff = wrapf(target_rotation - current_rot, -PI, PI)
+        head_group.rotation = current_rot + diff * (20.0 * get_process_delta_time())
+        
+    head_group.position = path[-1] - CONNECTION_LOCAL.rotated(head_group.rotation)
     
+    # 绘制直身子
     var seg_count = path.size() - 1
     var current_children = middle_segments.get_children()
     
@@ -249,10 +264,8 @@ func update_visuals() -> void:
                 seg.visible = false
                 continue
                 
-            # 完全不缩进，交给 Z-index 5 遮盖接缝
             if i == path.size() - 2 and in_turn:
-                # 在拐弯时没有 TopBody 遮挡，如果中间身子还不到 HeadGroup 的底部边缘就会漏光。
-                # 由于 TopBody 是 3px 并且被隐藏了，可以适当延伸 3.0 像素补充进去。
+                # 当转弯时 TopBody 被隐藏了，此时要把 MiddleSegment 延长 3 像素去填补那个空缺，直接顶在 HeadSprite 下巴上
                 p2 += dir * 3.0
                 
             var dist = p1.distance_to(p2)
