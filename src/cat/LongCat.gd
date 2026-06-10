@@ -22,10 +22,11 @@ var turns_data: Array[Dictionary] = []
 var blocked_input_dir: Vector2 = Vector2.ZERO
 var prev_raw_input: Vector2 = Vector2.ZERO
 var auto_turn_dir: Vector2 = Vector2.ZERO
+var movement_accumulator: float = 0.0
 
 func _ready() -> void:
     path.append(Vector2(0, 0))
-    path.append(Vector2(0, -9.5))
+    path.append(Vector2(0, -9))
     current_dir = Vector2.UP
     
     bottom_sprite.position = path[0]
@@ -35,14 +36,12 @@ func _ready() -> void:
 func _process(delta: float) -> void:
     var raw_input = get_input_dir()
     
-    # 检测是否在转弯中
     var in_turn = false
     if path.size() > 2:
         var dist_to_prev = path[-1].distance_to(path[-2])
         if dist_to_prev > 0.0 and dist_to_prev < MIN_TURN_DIST:
             in_turn = true
             
-    # 转弯时接管输入，确保播放完前进或后退的动画
     if in_turn:
         if raw_input == current_dir or raw_input == -current_dir:
             auto_turn_dir = raw_input
@@ -59,7 +58,6 @@ func _process(delta: float) -> void:
     
     var input_dir = raw_input
     
-    # 遇到拐角后的停顿逻辑
     if raw_input == Vector2.ZERO:
         blocked_input_dir = Vector2.ZERO
     elif raw_input == blocked_input_dir:
@@ -68,14 +66,19 @@ func _process(delta: float) -> void:
         blocked_input_dir = Vector2.ZERO
 
     if input_dir != Vector2.ZERO:
-        var step = speed * delta
-        if is_tap:
-            step = max(step, 1.0)
+        movement_accumulator += speed * delta
+        var step = floor(movement_accumulator)
+        
+        if is_tap and step < 1.0:
+            step = 1.0
             
-        move_cat(input_dir, step)
-        update_head_frame(input_dir)
+        if step >= 1.0:
+            movement_accumulator -= step
+            move_cat(input_dir, step)
+            update_head_frame(input_dir)
     else:
         head_sprite.frame = 0 
+        movement_accumulator = 0.0
 
     update_visuals()
 
@@ -250,31 +253,33 @@ func update_visuals() -> void:
         else:
             var p1 = path[i]
             var p2 = path[i+1]
-            var dir = (p2 - p1).normalized()
+        # 只计算整数并去掉小数点后的误差
+        p1 = p1.round()
+        p2 = p2.round()
+        var dir = (p2 - p1).normalized().round()
+        
+        if i > 0:
+            p1 += dir * 5.0
             
-            # 恢复缩进，防止直条身体越过拐角的中心点导致交叉（错位和多余像素的根源）
-            if i > 0:
-                p1 += dir * 4.5
-                
-            if i < path.size() - 2:
-                p2 -= dir * 4.5
+        if i < path.size() - 2:
+            p2 -= dir * 5.0
+        else:
+            if in_turn:
+                # 转弯时隐藏上半身，直条只需对接到转弯图的边缘 (4.5 的边缘，取 5.0 容错)
+                p2 -= dir * 5.0 
             else:
-                if in_turn:
-                    # 在转弯时，由于不画最后这节中间身子（交给转弯动画），所以把 p2 退回到 p1 后方
-                    p2 = p1 - dir * 1.0 
-                else:
-                    # 离开转角后，给猫头上边的 TopBody 留出 7.0 像素空间
-                    p2 -= dir * 7.0 
+                # 直行时上边身子显示，占据 7 像素。我们留出 6 像素（产生1像素安全重叠）
+                p2 -= dir * 6.0 
                 
-            var seg_vec = p2 - p1
-            if seg_vec.dot(dir) > 0.0:
-                var dist = seg_vec.length()
-                seg.region_rect = Rect2(0, 0, 9, dist) 
-                seg.position = (p1 + p2) / 2.0
-                seg.rotation = dir.angle() - (-PI/2)
-                seg.visible = true
-            else:
-                seg.visible = false
+        var seg_vec = p2 - p1
+        if seg_vec.dot(dir) > 0.0:
+            var dist = seg_vec.length()
+            seg.region_rect = Rect2(0, 0, 9, dist) 
+            seg.position = p1 + seg_vec / 2.0
+            seg.rotation = dir.angle() - (-PI/2)
+            seg.visible = true
+        else:
+            seg.visible = false
             
     for i in range(turns_data.size()):
         var t_data = turns_data[i]
