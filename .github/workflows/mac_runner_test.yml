@@ -1,0 +1,16 @@
+name: MacOS Fuzz Test
+on: [push]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v1
+        with:
+          version: 4.2.2
+          
+      - name: Run Fuzz Test
+        run: godot --headless --script tests/test_fuzzer.gd
