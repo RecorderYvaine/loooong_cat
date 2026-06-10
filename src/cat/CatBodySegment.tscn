@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cx4x2x..."]
+
+[ext_resource type="Script" path="res://src/cat/CatBodySegment.gd" id="1_abcde"]
+
+[node name="CatBodySegment" type="Area2D"]
+script = ExtResource("1_abcde")
