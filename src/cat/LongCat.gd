@@ -2,7 +2,7 @@ extends Node2D
 class_name LongCat
 
 @export var speed: float = 120.0
-const MIN_TURN_DIST: float = 16.0
+const MIN_TURN_DIST: float = 9.0
 
 var path: Array[Vector2] = []
 var current_dir: Vector2 = Vector2.UP
@@ -61,8 +61,10 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
         
         # Are we retracting past the previous corner?
         if path.size() > 2:
+            var dist_to_prev = path[-1].distance_to(path[-2])
             # (head_pos - prev_pos) dot seg_dir <= 0 means we've crossed prev_pos
-            if (path[-1] - path[-2]).dot(seg_dir) <= 0:
+            # Also snap if we are very close to it (e.g., within 3 pixels)
+            if (path[-1] - path[-2]).dot(seg_dir) <= 0 or dist_to_prev < 3.0:
                 # We reached the corner. Remove it!
                 path.pop_back()
                 path[-1] = prev_pos
@@ -89,6 +91,7 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
             var turn_sprite = Sprite2D.new()
             turn_sprite.texture = turn_tex
             turn_sprite.hframes = 7
+            turn_sprite.vframes = 2
             turn_sprite.position = head_pos
             turn_sprite.rotation = input_dir.angle() - (PI/2) # adjust rotation as needed
             turn_segments.add_child(turn_sprite)
@@ -115,8 +118,11 @@ func update_visuals() -> void:
     
     # Update Middle Line
     middle_line.clear_points()
-    for p in path:
-        middle_line.add_point(p)
+    # Path[0] is the bottom base. We offset the line starting point to the left side of the bottom base.
+    var base_pos = path[0] + Vector2(-3.0, 0.0) # offset left a bit for tail connection
+    middle_line.add_point(base_pos)
+    for i in range(1, path.size()):
+        middle_line.add_point(path[i])
         
     # Bottom body position
     bottom_sprite.position = path[0]
