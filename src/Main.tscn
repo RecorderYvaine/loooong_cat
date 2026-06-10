@@ -1,7 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://src/cat/CatHead.tscn" id="1_head"]
-[ext_resource type="PackedScene" path="res://src/cat/CatBodySegment.tscn" id="2_body"]
+[ext_resource type="PackedScene" path="res://src/cat/LongCat.tscn" id="1_cat"]
 
 [node name="Main" type="Node2D"]
 
@@ -10,6 +9,5 @@ offset_right = 1152.0
 offset_bottom = 648.0
 color = Color(0.2, 0.2, 0.2, 1)
 
-[node name="CatHead" parent="." instance=ExtResource("1_head")]
+[node name="LongCat" parent="." instance=ExtResource("1_cat")]
 position = Vector2(200, 300)
-body_segment_scene = ExtResource("2_body")
