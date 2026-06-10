@@ -93,13 +93,18 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
             var turn_sprite = Sprite2D.new()
             turn_sprite.texture = turn_tex
             turn_sprite.region_enabled = true
+            # 永远使用下半截 (9 到 18) 的动画帧
+            turn_sprite.region_rect = Rect2(0, 9, 63, 9)
+            
+            # 使用水平翻转来区分顺时针和逆时针
             if cross > 0:
-                turn_sprite.region_rect = Rect2(0, 0, 63, 9) # CW
+                turn_sprite.flip_h = true # 顺时针翻转
             else:
-                turn_sprite.region_rect = Rect2(0, 9, 63, 9) # CCW
+                turn_sprite.flip_h = false # 逆时针不翻转
+                
             turn_sprite.hframes = 7
             turn_sprite.position = head_pos
-            turn_sprite.rotation = prev_dir.angle() - (-PI/2)
+            turn_sprite.rotation = prev_dir.angle() + (PI/2)
             turn_segments.add_child(turn_sprite)
             turns_data.append({"node": turn_sprite})
 
