@@ -33,12 +33,26 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
     var raw_input = get_input_dir()
-    var is_tap = (raw_input != Vector2.ZERO and prev_raw_input != raw_input)
+    
+    # 检测是否在转弯中
+    var in_turn = false
+    if path.size() > 2:
+        var dist_to_prev = path[-1].distance_to(path[-2])
+        if dist_to_prev > 0.0 and dist_to_prev < MIN_TURN_DIST:
+            in_turn = true
+            
+    # 如果正在转弯，且没有按下相反方向（后退），则强制继续前进直到转弯完成
+    if in_turn and raw_input != -current_dir:
+        raw_input = current_dir
+        
+    var is_tap = false
+    if not in_turn:
+        is_tap = (raw_input != Vector2.ZERO and prev_raw_input != raw_input)
     prev_raw_input = raw_input
     
     var input_dir = raw_input
     
-    # 遇到拐角后的停顿逻辑：要求松开按键或换方向才能继续
+    # 遇到拐角后的停顿逻辑
     if raw_input == Vector2.ZERO:
         blocked_input_dir = Vector2.ZERO
     elif raw_input == blocked_input_dir:
@@ -48,14 +62,13 @@ func _process(delta: float) -> void:
 
     if input_dir != Vector2.ZERO:
         var step = speed * delta
-        # 短按时至少走 1 像素，方便微调
         if is_tap:
             step = max(step, 1.0)
             
         move_cat(input_dir, step)
         update_head_frame(input_dir)
     else:
-        head_sprite.frame = 0 # Idle
+        head_sprite.frame = 0 
 
     update_visuals()
 
@@ -184,20 +197,34 @@ func update_head_frame(input_dir: Vector2) -> void:
     elif input_dir == -seg_dir:
         head_sprite.frame = 4 
     else:
+        # Turning, keep frame 3 (forward)
         head_sprite.frame = 3
 
 func update_visuals() -> void:
     head_group.position = path[-1]
     
+    var in_turn = false
+    var head_dist = 0.0
+    if path.size() > 2:
+        head_dist = path[-1].distance_to(path[-2])
+        if head_dist > 0.0 and head_dist < MIN_TURN_DIST:
+            in_turn = true
+            
+    # 转弯时隐藏上身，让动画完全由拐角图负责
+    top_body.visible = !in_turn
+    
     var target_rotation = current_dir.angle() - (-PI/2)
-    var current_rot = head_group.rotation
-    var rot_diff = wrapf(target_rotation - current_rot, -PI, PI)
-    head_group.rotation = current_rot + rot_diff * (20.0 * get_process_delta_time())
+    if in_turn:
+        var prev_dir = (path[-2] - path[-3]).normalized()
+        if prev_dir == Vector2.ZERO: prev_dir = current_dir
+        var prev_rot = prev_dir.angle() - (-PI/2)
+        
+        var progress = head_dist / MIN_TURN_DIST
+        var diff = wrapf(target_rotation - prev_rot, -PI, PI)
+        head_group.rotation = prev_rot + diff * progress
+    else:
+        head_group.rotation = target_rotation
     
-    top_body.position = -current_dir * 5.5
-    top_body.rotation = current_dir.angle() - (-PI/2)
-    
-    # 修复多余像素和错位：复用现有的节点，不再每帧 queue_free() 整个列表
     var seg_count = path.size() - 1
     var current_children = middle_segments.get_children()
     
@@ -218,11 +245,23 @@ func update_visuals() -> void:
             var p2 = path[i+1]
             var dir = (p2 - p1).normalized()
             
-            if i == path.size() - 2:
-                p2 -= dir * 7.0 
+            # 恢复缩进，防止直条身体越过拐角的中心点导致交叉（错位和多余像素的根源）
+            if i > 0:
+                p1 += dir * 4.5
                 
-            var dist = p1.distance_to(p2)
-            if dist > 0.0:
+            if i < path.size() - 2:
+                p2 -= dir * 4.5
+            else:
+                if in_turn:
+                    # 在转弯时，由于不画最后这节中间身子（交给转弯动画），所以把 p2 退回到 p1 后方
+                    p2 = p1 - dir * 1.0 
+                else:
+                    # 离开转角后，给猫头上边的 TopBody 留出 7.0 像素空间
+                    p2 -= dir * 7.0 
+                
+            var seg_vec = p2 - p1
+            if seg_vec.dot(dir) > 0.0:
+                var dist = seg_vec.length()
                 seg.region_rect = Rect2(0, 0, 9, dist) 
                 seg.position = (p1 + p2) / 2.0
                 seg.rotation = dir.angle() - (-PI/2)
