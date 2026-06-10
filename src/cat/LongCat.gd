@@ -3,7 +3,7 @@ class_name LongCat
 
 @export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
-const TURN_CLEARANCE: float = 4.4
+const TURN_CLEARANCE: float = 4.0
 const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
 const VISIBLE_TOP_BODY_HEAD_GAP: float = 8.0
 const HIDE_TOP_BODY_DIST: float = 12.5
@@ -219,6 +219,9 @@ func pixel_align_body_segment(pos: Vector2, dir: Vector2) -> Vector2:
 		aligned.x = floor(aligned.x) + 0.5
 	return aligned
 
+func get_turn_clearance(progress: float) -> float:
+	return round(TURN_CLEARANCE * clamp(progress, 0.0, 1.0))
+
 func update_head_frame(input_dir: Vector2) -> void:
 	var seg_dir = current_dir
 	if path.size() > 1:
@@ -292,7 +295,7 @@ func update_visuals() -> void:
 			if i > 0:
 				var start_clearance = TURN_CLEARANCE
 				if i == active_corner_index:
-					start_clearance *= turn_progress
+					start_clearance = get_turn_clearance(turn_progress)
 				p1 += dir * start_clearance
 				
 			if i == path.size() - 2:
@@ -303,7 +306,7 @@ func update_visuals() -> void:
 			else:
 				var end_clearance = TURN_CLEARANCE
 				if i + 1 == active_corner_index:
-					end_clearance *= turn_progress
+					end_clearance = get_turn_clearance(turn_progress)
 				p2 -= dir * end_clearance
 				
 			var seg_vec = p2 - p1

@@ -38,6 +38,21 @@ func run() -> void:
 	await walk(Vector2.RIGHT, 55.0)
 	await save_view("multi_turns.png")
 
+	root.remove_child(cat)
+	cat.queue_free()
+	await process_frame
+
+	cat = cat_scene.instantiate()
+	cat.position = Vector2(145, 130)
+	root.add_child(cat)
+	await process_frame
+
+	await walk(Vector2.UP, 95.0)
+	await walk(Vector2.RIGHT, 105.0)
+	await walk(Vector2.DOWN, 75.0)
+	await walk(Vector2.LEFT, 95.0)
+	await save_view("left_finish.png")
+
 	print("Saved visual turn test images to ", ProjectSettings.globalize_path(OUT_DIR))
 	quit(0)
 

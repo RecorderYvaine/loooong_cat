@@ -35,6 +35,10 @@ func run_turn_visual_state_checks() -> bool:
 
 	if not assert_angle_close(cat.head_group.rotation, PI / 2.0, "Head faces exactly right after a completed right turn"):
 		return false
+	if cat.turns_data.size() != 1:
+		printerr("FAILED: expected one turn after moving right. turns=", cat.turns_data.size())
+		quit(1)
+		return false
 
 	var found_horizontal_segment = false
 	for child in cat.middle_segments.get_children():
@@ -57,6 +61,22 @@ func run_turn_visual_state_checks() -> bool:
 	if not assert_half_pixel(turn.position.x, "Turn sprite x-position is pixel-centered"):
 		return false
 	if not assert_half_pixel(turn.position.y, "Turn sprite y-position is pixel-centered"):
+		return false
+
+	drive_cat(cat, Vector2.DOWN, 40)
+	drive_cat(cat, Vector2.LEFT, 40)
+
+	if not assert_angle_close(cat.head_group.rotation, -PI / 2.0, "Head faces exactly left after a completed left turn"):
+		return false
+	if cat.turns_data.size() < 3:
+		printerr("FAILED: expected turn data for right/down/left path. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	var latest_turn = cat.turns_data[-1].node
+	if not assert_half_pixel(latest_turn.position.x, "Latest turn sprite x-position is pixel-centered"):
+		return false
+	if not assert_half_pixel(latest_turn.position.y, "Latest turn sprite y-position is pixel-centered"):
 		return false
 
 	cat.queue_free()
