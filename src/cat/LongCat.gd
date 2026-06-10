@@ -3,6 +3,10 @@ class_name LongCat
 
 @export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
+const TURN_CLEARANCE: float = 4.4
+const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
+const VISIBLE_TOP_BODY_HEAD_GAP: float = 8.0
+const HIDE_TOP_BODY_DIST: float = 12.5
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -221,11 +225,15 @@ func update_visuals() -> void:
 	var in_turn = false
 	var hiding_top_body = false
 	var head_dist = 0.0
+	var turn_progress = 1.0
+	var active_corner_index = -1
 	if path.size() > 2:
 		head_dist = path[-1].distance_to(path[-2])
 		if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
 			in_turn = true
-		if head_dist >= 0.0 and head_dist < 12.5:
+			active_corner_index = path.size() - 2
+			turn_progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
+		if head_dist >= 0.0 and head_dist < HIDE_TOP_BODY_DIST:
 			hiding_top_body = true
 
 	# 转弯及刚出弯时隐藏上边身子，避免直直的身体块戳进弯道图片里
@@ -240,9 +248,8 @@ func update_visuals() -> void:
 		if prev_dir == Vector2.ZERO: prev_dir = current_dir
 		var prev_rot = prev_dir.angle() - (-PI/2)
 
-		var progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
 		var diff = wrapf(target_rotation - prev_rot, -PI, PI)
-		head_group.rotation = prev_rot + diff * progress
+		head_group.rotation = prev_rot + diff * turn_progress
 	else:
 		var diff = wrapf(target_rotation - current_rot, -PI, PI)
 		head_group.rotation = current_rot + diff * (20.0 * get_process_delta_time())
@@ -274,15 +281,21 @@ func update_visuals() -> void:
 				continue
 				
 			if i > 0:
-				p1 += dir * 4.4
+				var start_clearance = TURN_CLEARANCE
+				if i == active_corner_index:
+					start_clearance *= turn_progress
+				p1 += dir * start_clearance
 				
 			if i == path.size() - 2:
 				if hiding_top_body:
-					p2 -= dir * 5.0
+					p2 -= dir * HIDDEN_TOP_BODY_HEAD_GAP
 				else:
-					p2 -= dir * 8.0
+					p2 -= dir * VISIBLE_TOP_BODY_HEAD_GAP
 			else:
-				p2 -= dir * 4.4
+				var end_clearance = TURN_CLEARANCE
+				if i + 1 == active_corner_index:
+					end_clearance *= turn_progress
+				p2 -= dir * end_clearance
 				
 			var seg_vec = p2 - p1
 			if seg_vec.dot(dir) > 0.0:
