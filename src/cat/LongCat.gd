@@ -201,12 +201,23 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 					turn_sprite.flip_h = false 
 				else:
 					turn_sprite.flip_h = true
-					
+				
 				turn_sprite.hframes = 7
-				turn_sprite.position = head_pos
+				turn_sprite.position = pixel_align_center(head_pos)
 				turn_sprite.rotation = prev_dir.angle() + (PI/2)
 				turn_segments.add_child(turn_sprite)
 				turns_data.append({"node": turn_sprite})
+
+func pixel_align_center(pos: Vector2) -> Vector2:
+	return Vector2(floor(pos.x) + 0.5, floor(pos.y) + 0.5)
+
+func pixel_align_body_segment(pos: Vector2, dir: Vector2) -> Vector2:
+	var aligned = pos
+	if abs(dir.x) > 0.0:
+		aligned.y = floor(aligned.y) + 0.5
+	elif abs(dir.y) > 0.0:
+		aligned.x = floor(aligned.x) + 0.5
+	return aligned
 
 func update_head_frame(input_dir: Vector2) -> void:
 	var seg_dir = current_dir
@@ -241,7 +252,6 @@ func update_visuals() -> void:
 
 	# 核心修正：旋转猫头组，并同时根据旋转修正位置，使本地的猫脸中心始终精确对准 path[-1]
 	var target_rotation = current_dir.angle() - (-PI/2)
-	var current_rot = head_group.rotation
 
 	if in_turn:
 		var prev_dir = (path[-2] - path[-3]).normalized()
@@ -251,8 +261,7 @@ func update_visuals() -> void:
 		var diff = wrapf(target_rotation - prev_rot, -PI, PI)
 		head_group.rotation = prev_rot + diff * turn_progress
 	else:
-		var diff = wrapf(target_rotation - current_rot, -PI, PI)
-		head_group.rotation = current_rot + diff * (20.0 * get_process_delta_time())
+		head_group.rotation = target_rotation
 
 	head_group.position = path[-1] - FACE_LOCAL.rotated(head_group.rotation)
 
@@ -301,7 +310,7 @@ func update_visuals() -> void:
 			if seg_vec.dot(dir) > 0.0:
 				var dist = seg_vec.length()
 				seg.region_rect = Rect2(0, 0, 9, dist) 
-				seg.position = (p1 + p2) / 2.0
+				seg.position = pixel_align_body_segment((p1 + p2) / 2.0, dir)
 				seg.rotation = dir.angle() - (-PI/2)
 				seg.visible = true
 			else:
