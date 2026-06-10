@@ -1,0 +1,15 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://src/cat/CatHead.tscn" id="1_head"]
+[ext_resource type="PackedScene" path="res://src/cat/CatBodySegment.tscn" id="2_body"]
+
+[node name="Main" type="Node2D"]
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0.2, 0.2, 0.2, 1)
+
+[node name="CatHead" parent="." instance=ExtResource("1_head")]
+position = Vector2(200, 300)
+body_segment_scene = ExtResource("2_body")
