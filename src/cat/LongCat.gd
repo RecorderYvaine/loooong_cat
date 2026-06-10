@@ -27,7 +27,7 @@ func _ready() -> void:
     current_dir = Vector2.UP
     
     bottom_sprite.position = path[0]
-    tail_sprite.position = bottom_sprite.position + Vector2(-7.5, 0)
+    tail_sprite.position = bottom_sprite.position + Vector2(7.5, 0)
     update_visuals()
 
 func _process(delta: float) -> void:
@@ -99,9 +99,9 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
             
             # 使用水平翻转来区分顺时针和逆时针
             if cross > 0:
-                turn_sprite.flip_h = true # 顺时针翻转
+                turn_sprite.flip_h = false # 顺时针不翻转 (原生图是CW)
             else:
-                turn_sprite.flip_h = false # 逆时针不翻转
+                turn_sprite.flip_h = true # 逆时针翻转
                 
             turn_sprite.hframes = 7
             turn_sprite.position = head_pos
