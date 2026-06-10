@@ -67,8 +67,7 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
         # 缩回过弯的吸附逻辑
         if path.size() > 2:
             var dist_to_prev = path[-1].distance_to(path[-2])
-            # 如果越过了上一个拐角，或者离拐角距离小于 2 个像素（微调吸附），就吃掉这个拐角
-            if (path[-1] - path[-2]).dot(seg_dir) <= 0 or dist_to_prev < 2.0:
+            if (path[-1] - path[-2]).dot(seg_dir) <= 0 or dist_to_prev < 3.0:
                 path.pop_back()
                 path[-1] = prev_pos
                 current_dir = (path[-1] - path[-2]).normalized()
@@ -78,13 +77,15 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
                     if last_turn.node:
                         last_turn.node.queue_free()
         else:
-            # 防止缩回超过原点
             if (path[-1] - path[0]).dot(seg_dir) <= 0:
                 path[-1] = path[0] + seg_dir * 1.0
     else:
         # 转弯！
         var dist_from_last_corner = head_pos.distance_to(prev_pos)
         if dist_from_last_corner >= MIN_TURN_DIST:
+            var prev_dir = seg_dir
+            var cross = prev_dir.x * input_dir.y - prev_dir.y * input_dir.x
+            
             path.append(head_pos)
             current_dir = input_dir
             path[-1] += input_dir * step
@@ -92,28 +93,33 @@ func move_cat(input_dir: Vector2, delta: float) -> void:
             var turn_sprite = Sprite2D.new()
             turn_sprite.texture = turn_tex
             turn_sprite.region_enabled = true
-            turn_sprite.region_rect = Rect2(0, 0, 63, 9) # 取63x18图片的上半部分 63x9
+            if cross > 0:
+                turn_sprite.region_rect = Rect2(0, 0, 63, 9) # CW
+            else:
+                turn_sprite.region_rect = Rect2(0, 9, 63, 9) # CCW
             turn_sprite.hframes = 7
             turn_sprite.position = head_pos
-            turn_sprite.rotation = input_dir.angle() - (-PI/2) # 旋转拐角贴图方向
+            turn_sprite.rotation = prev_dir.angle() - (-PI/2)
             turn_segments.add_child(turn_sprite)
             turns_data.append({"node": turn_sprite})
 
 func update_head_frame(input_dir: Vector2) -> void:
-    # 严格按照移动方向切猫头的 1-4 帧 (不旋转猫头节点，只换眼睛方向)
-    if input_dir == Vector2.LEFT: head_sprite.frame = 1
-    elif input_dir == Vector2.RIGHT: head_sprite.frame = 2
-    elif input_dir == Vector2.UP: head_sprite.frame = 3
-    elif input_dir == Vector2.DOWN: head_sprite.frame = 4
+    var seg_dir = current_dir
+    if path.size() > 1:
+        seg_dir = (path[-1] - path[-2]).normalized()
+        if seg_dir == Vector2.ZERO: seg_dir = current_dir
+        
+    if input_dir == seg_dir:
+        head_sprite.frame = 3 # 向上看 (相对猫头是往前)
+    elif input_dir == -seg_dir:
+        head_sprite.frame = 4 # 向下看 (相对猫头是往后)
+    else:
+        head_sprite.frame = 3
 
 func update_visuals() -> void:
-    # 猫头永远在最前，并且没有任何奇怪的 90 度强行旋转
+    # 猫头永远朝向移动方向
     head_group.position = path[-1]
-    head_group.rotation = 0 
-    
-    # 调整猫的"上半身(TopBody)"，让它根据移动方向永远接在头部的后方
-    top_body.position = -current_dir * 6.5
-    top_body.rotation = current_dir.angle() - (-PI/2)
+    head_group.rotation = current_dir.angle() - (-PI/2)
     
     # 渲染中间连续的身体 (MiddleSegments)
     for child in middle_segments.get_children():
@@ -122,18 +128,28 @@ func update_visuals() -> void:
     for i in range(path.size() - 1):
         var p1 = path[i]
         var p2 = path[i+1]
+        var dir = (p2 - p1).normalized()
         
+        # 缩进处理，避免与拐角、头、尾重叠
+        if i > 0:
+            p1 += dir * 4.5
+        else:
+            p1 += dir * 2.5
+            
+        if i < path.size() - 2:
+            p2 -= dir * 4.5
+        else:
+            p2 -= dir * 8.0
+            
         var dist = p1.distance_to(p2)
-        if dist > 0.5:
+        if dist > 0.0:
             var seg = Sprite2D.new()
             seg.texture = middle_tex
             seg.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
             seg.region_enabled = true
-            # 将 9x1 的像素图通过 region_rect 的高度拉伸，实现无缝平铺
-            # dist + 2.0 用于产生微小重叠，防止出现 1 像素的视觉裂缝
-            seg.region_rect = Rect2(0, 0, 9, dist + 2.0) 
+            seg.region_rect = Rect2(0, 0, 9, dist) 
             seg.position = (p1 + p2) / 2.0
-            seg.rotation = (p2 - p1).angle() - (-PI/2)
+            seg.rotation = dir.angle() - (-PI/2)
             middle_segments.add_child(seg)
             
     # 根据距离自动播放转弯处的帧动画
@@ -142,6 +158,5 @@ func update_visuals() -> void:
         var frame = 0
         if i == turns_data.size() - 1:
             var dist = path[-1].distance_to(t_data.node.position)
-            # 距离映射到 6 到 0 帧
             frame = clamp(6 - int((dist / MIN_TURN_DIST) * 7.0), 0, 6)
         t_data.node.frame = frame
