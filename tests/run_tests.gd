@@ -154,8 +154,8 @@ func run_overlap_movement_checks() -> bool:
 	cat.path = [
 		Vector2(0.5, 0.0),
 		Vector2(100.5, 0.0),
-		Vector2(100.5, 8.0),
-		Vector2(50.5, 8.0),
+		Vector2(100.5, 11.0),
+		Vector2(50.5, 11.0),
 	]
 	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()

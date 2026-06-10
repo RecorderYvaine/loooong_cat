@@ -5,9 +5,7 @@ class_name LongCat
 const MIN_TURN_DIST: float = 9.0
 const TURN_CLEARANCE: float = 4.0
 const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
-const VISIBLE_TOP_BODY_HEAD_GAP: float = 8.0
-const HIDE_TOP_BODY_DIST: float = 12.5
-const BODY_COLLISION_RADIUS: float = 8.5
+const BODY_COLLISION_RADIUS: float = 12.0
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -230,7 +228,6 @@ func update_head_frame(input_dir: Vector2) -> void:
 
 func update_visuals() -> void:
 	var in_turn = false
-	var hiding_top_body = false
 	var head_dist = 0.0
 	var turn_progress = 1.0
 	var active_corner_index = -1
@@ -240,11 +237,10 @@ func update_visuals() -> void:
 			in_turn = true
 			active_corner_index = path.size() - 2
 			turn_progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
-		if head_dist >= 0.0 and head_dist < HIDE_TOP_BODY_DIST:
-			hiding_top_body = true
 
-	# 转弯及刚出弯时隐藏上边身子，避免直直的身体块戳进弯道图片里
-	top_body.visible = !hiding_top_body
+	# The straight body segment now connects directly to the head. Keeping this
+	# separate sprite visible creates one-pixel protrusions after horizontal turns.
+	top_body.visible = false
 
 	# 核心修正：旋转猫头组，并同时根据旋转修正位置，使本地的猫脸中心始终精确对准 path[-1]
 	var target_rotation = current_dir.angle() - (-PI/2)
@@ -292,10 +288,7 @@ func update_visuals() -> void:
 				p1 += dir * start_clearance
 				
 			if i == path.size() - 2:
-				if hiding_top_body:
-					p2 -= dir * HIDDEN_TOP_BODY_HEAD_GAP
-				else:
-					p2 -= dir * VISIBLE_TOP_BODY_HEAD_GAP
+				p2 -= dir * HIDDEN_TOP_BODY_HEAD_GAP
 			else:
 				var end_clearance = TURN_CLEARANCE
 				if i + 1 == active_corner_index:
