@@ -272,15 +272,18 @@ func update_visuals() -> void:
 			if dir == Vector2.ZERO:
 				seg.visible = false
 				continue
-
+				
+			if i > 0:
+				p1 += dir * 4.4
+				
 			if i == path.size() - 2:
 				if hiding_top_body:
-					# 当 TopBody 被隐藏时，用底层 MiddleSegment 无缝填补空隙，直达后脑勺 (距脸中心 5.0 像素)
 					p2 -= dir * 5.0
 				else:
-					# 当 TopBody 显示时，直身子准确连接到 TopBody 的底端 (距脸中心 8.0 像素)
 					p2 -= dir * 8.0
-
+			else:
+				p2 -= dir * 4.4
+				
 			var seg_vec = p2 - p1
 			if seg_vec.dot(dir) > 0.0:
 				var dist = seg_vec.length()
