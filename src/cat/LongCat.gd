@@ -123,9 +123,15 @@ func update_head_frame(input_dir: Vector2) -> void:
         head_sprite.frame = 3
 
 func update_visuals() -> void:
-    # 猫头永远朝向移动方向
     head_group.position = path[-1]
-    head_group.rotation = current_dir.angle() - (-PI/2)
+    
+    # 平滑旋转猫头组 (包含头和 TopBody)
+    var target_rotation = current_dir.angle() - (-PI/2)
+    var current_rot = head_group.rotation
+    
+    # 防止 -PI 和 PI 导致的 360 度大回旋
+    var rot_diff = wrapf(target_rotation - current_rot, -PI, PI)
+    head_group.rotation = current_rot + rot_diff * (20.0 * get_process_delta_time())
     
     # 渲染中间连续的身体 (MiddleSegments)
     for child in middle_segments.get_children():
@@ -136,7 +142,21 @@ func update_visuals() -> void:
         var p2 = path[i+1]
         var dir = (p2 - p1).normalized()
         
+        # 严格计算截断以防止露出接缝：
+        # 拐角是一个 9x9 的方块，所以前后都要缩进 4.5 像素才刚好碰到拐角的边缘。
+        # 对于底座 (path[0])，不需要缩进那么多，因为尾巴和它连在一起。
+        if i > 0:
+            p1 += dir * 4.5
+            
+        # 对于猫头所在的最前端 (path.size() - 2)，TopBody 占了 3 个像素高度。
+        # 猫头中心偏移 6.5，为了让 TopBody 紧贴 MiddleBody，我们要减去正好留给 TopBody 的空间。
+        if i < path.size() - 2:
+            p2 -= dir * 4.5
+        else:
+            p2 -= dir * 8.0 # 给 TopBody 留出空间
+            
         var dist = p1.distance_to(p2)
+        # 只有距离 > 0 才画，避免出现反向绘制导致错位
         if dist > 0.0:
             var seg = Sprite2D.new()
             seg.texture = middle_tex
@@ -153,5 +173,7 @@ func update_visuals() -> void:
         var frame = 0
         if i == turns_data.size() - 1:
             var dist = path[-1].distance_to(t_data.node.position)
+            # 头离开拐角越远，动画越接近结束（0帧）。
+            # dist 从 0 变到 MIN_TURN_DIST 时，frame 从 6 变到 0
             frame = clamp(6 - int((dist / MIN_TURN_DIST) * 7.0), 0, 6)
         t_data.node.frame = frame
