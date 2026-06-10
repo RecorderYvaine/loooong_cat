@@ -1,7 +1,7 @@
 extends Node2D
 class_name LongCat
 
-@export var speed: float = 60.0
+@export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
 
 var path: Array[Vector2] = []
@@ -197,21 +197,11 @@ func update_visuals() -> void:
         var p2 = path[i+1]
         var dir = (p2 - p1).normalized()
         
-        # 严格计算截断以防止露出接缝：
-        # 拐角是一个 9x9 的方块，所以前后都要缩进 4.5 像素才刚好碰到拐角的边缘。
-        # 对于底座 (path[0])，不需要缩进那么多，因为尾巴和它连在一起。
-        if i > 0:
-            p1 += dir * 4.5
-            
-        # 对于猫头所在的最前端 (path.size() - 2)，TopBody 占了 3 个像素高度。
-        # 猫头中心偏移 6.5，为了让 TopBody 紧贴 MiddleBody，我们要减去正好留给 TopBody 的空间。
-        if i < path.size() - 2:
-            p2 -= dir * 4.5
-        else:
-            p2 -= dir * 8.0 # 给 TopBody 留出空间
+        # 只在猫头位置做缩进，给 TopBody 留出空间 (TopBody 远端在头部后方 5.5 + 1.5 = 7.0 的位置)
+        if i == path.size() - 2:
+            p2 -= dir * 7.0 
             
         var dist = p1.distance_to(p2)
-        # 只有距离 > 0 才画，避免出现反向绘制导致错位
         if dist > 0.0:
             var seg = Sprite2D.new()
             seg.texture = middle_tex
@@ -228,6 +218,5 @@ func update_visuals() -> void:
         var frame = 0
         if i == turns_data.size() - 1:
             var dist = path[-1].distance_to(t_data.node.position)
-            # 放慢转角动画：让它在 24.0 像素的距离内播放完毕，而不是瞬间的 MIN_TURN_DIST (9.0)
-            frame = clamp(6 - int((dist / 24.0) * 7.0), 0, 6)
+            frame = clamp(6 - int((dist / MIN_TURN_DIST) * 7.0), 0, 6)
         t_data.node.frame = frame
