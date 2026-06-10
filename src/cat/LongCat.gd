@@ -24,7 +24,7 @@ var prev_raw_input: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
     path.append(Vector2(0, 0))
-    path.append(Vector2(0, -11))
+    path.append(Vector2(0, -9.5))
     current_dir = Vector2.UP
     
     bottom_sprite.position = path[0]
