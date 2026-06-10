@@ -16,6 +16,8 @@ func run():
 		return
 	if not await run_blocked_turn_checks():
 		return
+	if not await run_overlap_movement_checks():
+		return
 	print("ALL TESTS PASSED")
 	quit(0)
 
@@ -129,6 +131,41 @@ func run_blocked_turn_checks() -> bool:
 		return false
 	if cat.blocked_input_dir != Vector2.LEFT:
 		printerr("FAILED: blocked turn should mark input as blocked. blocked=", cat.blocked_input_dir)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_overlap_movement_checks() -> bool:
+	print("Running overlap movement checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(100.5, 0.0),
+		Vector2(100.5, 8.0),
+		Vector2(50.5, 8.0),
+	]
+	cat.current_dir = Vector2.LEFT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	var head_before = cat.path[-1]
+	cat.move_cat(Vector2.LEFT, 1.0)
+
+	if cat.path[-1] != head_before:
+		printerr("FAILED: movement overlapping old body should be blocked. path=", cat.path)
 		quit(1)
 		return false
 

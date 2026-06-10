@@ -7,6 +7,7 @@ const TURN_CLEARANCE: float = 4.0
 const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
 const VISIBLE_TOP_BODY_HEAD_GAP: float = 8.0
 const HIDE_TOP_BODY_DIST: float = 12.5
+const BODY_COLLISION_RADIUS: float = 8.5
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -100,52 +101,37 @@ func get_input_dir() -> Vector2:
 
 func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -> float:
 	var allowed_step = requested_step
-	var check_points = path.size() - 3 
+	var check_points = max(0, path.size() - 3)
 	
 	for i in range(check_points):
 		var p1 = path[i]
 		var p2 = path[i+1]
-		var thickness = 8.5 
+		var bounds = get_segment_collision_bounds(p1, p2)
 		
 		if dir.x != 0: 
-			if p1.x == p2.x: 
-				var seg_x = p1.x
-				var min_y = min(p1.y, p2.y) - thickness
-				var max_y = max(p1.y, p2.y) + thickness
-				if start_pos.y >= min_y and start_pos.y <= max_y:
-					if dir.x > 0 and start_pos.x <= seg_x - thickness:
-						allowed_step = min(allowed_step, seg_x - thickness - start_pos.x)
-					elif dir.x < 0 and start_pos.x >= seg_x + thickness:
-						allowed_step = min(allowed_step, start_pos.x - (seg_x + thickness))
-			else: 
-				var min_x = min(p1.x, p2.x) - thickness
-				var max_x = max(p1.x, p2.x) + thickness
-				if abs(start_pos.y - p1.y) < thickness:
-					if dir.x > 0 and start_pos.x <= min_x:
-						allowed_step = min(allowed_step, min_x - start_pos.x)
-					elif dir.x < 0 and start_pos.x >= max_x:
-						allowed_step = min(allowed_step, start_pos.x - max_x)
+			if start_pos.y >= bounds.position.y and start_pos.y <= bounds.end.y:
+				if start_pos.x >= bounds.position.x and start_pos.x <= bounds.end.x:
+					allowed_step = 0.0
+				elif dir.x > 0 and start_pos.x < bounds.position.x:
+					allowed_step = min(allowed_step, bounds.position.x - start_pos.x)
+				elif dir.x < 0 and start_pos.x > bounds.end.x:
+					allowed_step = min(allowed_step, start_pos.x - bounds.end.x)
 						
 		elif dir.y != 0: 
-			if p1.y == p2.y: 
-				var seg_y = p1.y
-				var min_x = min(p1.x, p2.x) - thickness
-				var max_x = max(p1.x, p2.x) + thickness
-				if start_pos.x >= min_x and start_pos.x <= max_x:
-					if dir.y > 0 and start_pos.y <= seg_y - thickness:
-						allowed_step = min(allowed_step, seg_y - thickness - start_pos.y)
-					elif dir.y < 0 and start_pos.y >= seg_y + thickness:
-						allowed_step = min(allowed_step, start_pos.y - (seg_y + thickness))
-			else: 
-				var min_y = min(p1.y, p2.y) - thickness
-				var max_y = max(p1.y, p2.y) + thickness
-				if abs(start_pos.x - p1.x) < thickness:
-					if dir.y > 0 and start_pos.y <= min_y:
-						allowed_step = min(allowed_step, min_y - start_pos.y)
-					elif dir.y < 0 and start_pos.y >= max_y:
-						allowed_step = min(allowed_step, start_pos.y - max_y)
+			if start_pos.x >= bounds.position.x and start_pos.x <= bounds.end.x:
+				if start_pos.y >= bounds.position.y and start_pos.y <= bounds.end.y:
+					allowed_step = 0.0
+				elif dir.y > 0 and start_pos.y < bounds.position.y:
+					allowed_step = min(allowed_step, bounds.position.y - start_pos.y)
+				elif dir.y < 0 and start_pos.y > bounds.end.y:
+					allowed_step = min(allowed_step, start_pos.y - bounds.end.y)
 						
 	return max(0.0, allowed_step)
+
+func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
+	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y)) - Vector2(BODY_COLLISION_RADIUS, BODY_COLLISION_RADIUS)
+	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(BODY_COLLISION_RADIUS, BODY_COLLISION_RADIUS)
+	return Rect2(min_pos, max_pos - min_pos)
 
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 	return get_allowed_step(start_pos, dir, MIN_TURN_DIST) >= MIN_TURN_DIST
