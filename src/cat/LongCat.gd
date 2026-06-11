@@ -247,6 +247,11 @@ func pixel_align_body_segment(pos: Vector2, dir: Vector2) -> Vector2:
 		aligned.x = floor(aligned.x) + 0.5
 	return aligned
 
+func pixel_align_head_group(pos: Vector2, rotation: float) -> Vector2:
+	var sprite_origin = head_sprite.position.rotated(rotation)
+	var world_origin = pos + sprite_origin
+	return Vector2(round(world_origin.x), round(world_origin.y)) - sprite_origin
+
 func get_turn_clearance(progress: float) -> float:
 	return round(TURN_CLEARANCE * clamp(progress, 0.0, 1.0))
 
@@ -277,10 +282,21 @@ func update_visuals() -> void:
 
 	top_body.visible = not in_turn
 
-	# 猫头像素画只使用正交旋转；转弯动画由拐角身体帧负责，避免任意角度旋转造成拉伸。
+	# 转弯时保留猫头插值旋转；直线时只做像素对齐，避免 90 度后半像素采样拉伸纹理。
 	var target_rotation = current_dir.angle() - (-PI/2)
-	head_group.rotation = target_rotation
+	if in_turn:
+		var prev_dir = (path[-2] - path[-3]).normalized()
+		if prev_dir == Vector2.ZERO: prev_dir = current_dir
+		var prev_rot = prev_dir.angle() - (-PI/2)
+
+		var diff = wrapf(target_rotation - prev_rot, -PI, PI)
+		head_group.rotation = prev_rot + diff * turn_progress
+	else:
+		head_group.rotation = target_rotation
+
 	head_group.position = path[-1] - FACE_LOCAL.rotated(head_group.rotation)
+	if not in_turn:
+		head_group.position = pixel_align_head_group(head_group.position, head_group.rotation)
 
 	# 绘制直身子
 	var seg_count = path.size() - 1

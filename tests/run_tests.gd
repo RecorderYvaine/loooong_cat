@@ -41,7 +41,9 @@ func run_turn_visual_state_checks() -> bool:
 	drive_cat(cat, Vector2.UP, 28)
 	drive_cat(cat, Vector2.RIGHT, 1)
 
-	if not assert_angle_close(cat.head_group.rotation, PI / 2.0, "Head stays cardinal during an active right turn"):
+	if cat.head_group.rotation <= 0.0 or cat.head_group.rotation >= PI / 2.0:
+		printerr("FAILED: Head should interpolate during an active right turn. rotation=", cat.head_group.rotation)
+		quit(1)
 		return false
 	if cat.top_body.visible:
 		printerr("FAILED: upper body should be hidden while turn animation is active")
@@ -55,6 +57,8 @@ func run_turn_visual_state_checks() -> bool:
 	if not cat.top_body.visible:
 		printerr("FAILED: upper body should be visible while moving straight")
 		quit(1)
+		return false
+	if not assert_head_texture_pixel_aligned(cat, "Head texture origin is pixel-aligned after right turn"):
 		return false
 	if cat.turns_data.size() != 1:
 		printerr("FAILED: expected one turn after moving right. turns=", cat.turns_data.size())
@@ -85,9 +89,13 @@ func run_turn_visual_state_checks() -> bool:
 		return false
 
 	drive_cat(cat, Vector2.DOWN, 40)
+	if not assert_head_texture_pixel_aligned(cat, "Head texture origin is pixel-aligned after down turn"):
+		return false
 	drive_cat(cat, Vector2.LEFT, 40)
 
 	if not assert_angle_close(cat.head_group.rotation, -PI / 2.0, "Head faces exactly left after a completed left turn"):
+		return false
+	if not assert_head_texture_pixel_aligned(cat, "Head texture origin is pixel-aligned after left turn"):
 		return false
 	if cat.turns_data.size() < 3:
 		printerr("FAILED: expected turn data for right/down/left path. turns=", cat.turns_data.size())
@@ -375,6 +383,14 @@ func assert_half_pixel(value: float, message: String) -> bool:
 	var frac = value - floor(value)
 	if abs(frac - 0.5) > 0.001:
 		printerr("FAILED: ", message, ". value=", value)
+		quit(1)
+		return false
+	return true
+
+func assert_head_texture_pixel_aligned(cat: LongCat, message: String) -> bool:
+	var origin = cat.head_group.position + cat.head_sprite.position.rotated(cat.head_group.rotation)
+	if abs(origin.x - round(origin.x)) > 0.001 or abs(origin.y - round(origin.y)) > 0.001:
+		printerr("FAILED: ", message, ". origin=", origin, " rotation=", cat.head_group.rotation)
 		quit(1)
 		return false
 	return true
