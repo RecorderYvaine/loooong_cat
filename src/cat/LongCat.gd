@@ -75,6 +75,8 @@ func _process(delta: float) -> void:
 				queued_turn_dir = Vector2.ZERO
 			else:
 				raw_input = current_dir
+		elif path.size() > 2 and head_dist >= MIN_TURN_DIST and head_dist < TURN_READY_DIST:
+			raw_input = current_dir
 		
 	var is_tap = false
 	if not in_turn:

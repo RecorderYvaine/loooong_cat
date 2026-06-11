@@ -20,6 +20,8 @@ func run():
 		return
 	if not await run_queued_input_process_checks():
 		return
+	if not await run_released_turn_exit_checks():
+		return
 	if not await run_overlap_movement_checks():
 		return
 	print("ALL TESTS PASSED")
@@ -329,6 +331,60 @@ func run_queued_input_process_checks() -> bool:
 		return false
 	if cat.queued_turn_dir != Vector2.ZERO:
 		printerr("FAILED: queued input should be consumed after starting the turn. queued=", cat.queued_turn_dir)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_released_turn_exit_checks() -> bool:
+	print("Running released turn exit checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	drive_cat(cat, Vector2.UP, 28)
+	Input.action_press("ui_right")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_right")
+
+	var safety = 32
+	while safety > 0 and cat.get_head_segment_length() < cat.TURN_READY_DIST:
+		cat._process(1.0 / cat.speed)
+		safety -= 1
+
+	if abs(cat.get_head_segment_length() - cat.TURN_READY_DIST) > 0.001:
+		printerr("FAILED: released turn should auto-exit past the turn animation. dist=", cat.get_head_segment_length(), " path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.RIGHT:
+		printerr("FAILED: released turn should finish facing right. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if not cat.top_body.visible:
+		printerr("FAILED: upper body should be visible after released turn exits. dist=", cat.get_head_segment_length())
+		quit(1)
+		return false
+
+	var path_size_before = cat.path.size()
+	Input.action_press("ui_down")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_down")
+
+	if cat.path.size() != path_size_before + 1:
+		printerr("FAILED: next turn should start immediately after released turn exit. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: next turn after released exit should face down. current_dir=", cat.current_dir)
 		quit(1)
 		return false
 
