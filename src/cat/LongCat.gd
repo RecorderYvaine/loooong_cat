@@ -11,6 +11,7 @@ const HEAD_COLLISION_HALF_WIDTH: float = 5.5
 const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
 const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
 const REVERSE_POP_INPUT_LOCK_TIME: float = 0.12
+const CONTACT_TURN_EDGE_SLOP: float = 1.0
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -38,6 +39,8 @@ var preferred_input_dir: Vector2 = Vector2.ZERO
 var retract_active_turn_on_release: bool = false
 var reverse_pop_input_lock_dir: Vector2 = Vector2.ZERO
 var reverse_pop_input_lock_time: float = 0.0
+var contact_exit_segment_indices: Array[int] = []
+var contact_exit_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	turn_segments.position = Vector2.ZERO
@@ -214,7 +217,7 @@ func can_progress_with_input(input_dir: Vector2, step: float, allow_forward_adva
 
 	return can_start_turn(head_pos, input_dir)
 
-func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -> float:
+func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float, ignored_segment_indices: Array[int] = []) -> float:
 	var allowed_step = requested_step
 	var check_points = max(0, path.size() - 3)
 	
@@ -222,6 +225,8 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
 		var p1 = path[i]
 		var p2 = path[i+1]
 		var bounds = get_segment_collision_bounds(p1, p2)
+		if ignored_segment_indices.has(i):
+			continue
 		if is_point_in_bounds(start_pos, bounds):
 			if can_move_from_inside_segment_bounds(start_pos, dir, requested_step, p1, p2):
 				continue
@@ -260,6 +265,14 @@ func can_move_from_inside_segment_bounds(start_pos: Vector2, dir: Vector2, step:
 		return false
 	return true
 
+func can_start_contact_exit_from_segment(start_pos: Vector2, dir: Vector2, step: float, p1: Vector2, p2: Vector2) -> bool:
+	var end_pos = start_pos + dir * step
+	if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
+		return false
+	if is_dir_parallel_to_segment(dir, p1, p2):
+		return is_near_segment_collision_edge(start_pos, p1, p2)
+	return true
+
 func is_moving_deeper_into_segment_bounds(start_pos: Vector2, end_pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	return get_distance_from_segment_centerline(end_pos, p1, p2) < get_distance_from_segment_centerline(start_pos, p1, p2) - 0.001
 
@@ -271,6 +284,9 @@ func get_distance_from_segment_centerline(pos: Vector2, p1: Vector2, p2: Vector2
 
 	var center_x = (p1.x + p2.x) / 2.0
 	return abs(pos.x - center_x)
+
+func is_near_segment_collision_edge(pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
+	return get_distance_from_segment_centerline(pos, p1, p2) >= COLLISION_CLEARANCE - CONTACT_TURN_EDGE_SLOP
 
 func is_dir_parallel_to_segment(dir: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	var segment = p2 - p1
@@ -288,7 +304,7 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 		var bounds = get_segment_collision_bounds(p1, p2)
 		var starts_inside = is_point_in_bounds(start_pos, bounds)
 		if starts_inside:
-			if not can_move_from_inside_segment_bounds(start_pos, dir, MIN_TURN_DIST, p1, p2):
+			if not can_start_contact_exit_from_segment(start_pos, dir, MIN_TURN_DIST, p1, p2):
 				return false
 			continue
 
@@ -306,6 +322,36 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 					return false
 
 	return true
+
+func get_contact_exit_segment_indices(start_pos: Vector2, dir: Vector2) -> Array[int]:
+	var indices: Array[int] = []
+	var check_points = max(0, path.size() - 3)
+	for i in range(check_points):
+		var p1 = path[i]
+		var p2 = path[i+1]
+		var bounds = get_segment_collision_bounds(p1, p2)
+		if is_point_in_bounds(start_pos, bounds) and can_start_contact_exit_from_segment(start_pos, dir, MIN_TURN_DIST, p1, p2):
+			indices.append(i)
+	return indices
+
+func get_active_contact_exit_indices(start_pos: Vector2, dir: Vector2) -> Array[int]:
+	if dir != contact_exit_dir:
+		return []
+
+	var active_indices: Array[int] = []
+	for i in contact_exit_segment_indices:
+		if i < 0 or i >= path.size() - 1:
+			continue
+		if is_point_in_bounds(start_pos, get_segment_collision_bounds(path[i], path[i + 1])):
+			active_indices.append(i)
+	contact_exit_segment_indices = active_indices
+	if contact_exit_segment_indices.is_empty():
+		contact_exit_dir = Vector2.ZERO
+	return active_indices
+
+func clear_contact_exit() -> void:
+	contact_exit_segment_indices.clear()
+	contact_exit_dir = Vector2.ZERO
 
 func get_head_segment_length() -> float:
 	if path.size() < 2:
@@ -340,12 +386,13 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 	if seg_dir == Vector2.ZERO: seg_dir = current_dir
 	
 	if input_dir == seg_dir:
-		var allowed = get_allowed_step(path[-1], input_dir, step)
+		var allowed = get_allowed_step(path[-1], input_dir, step, get_active_contact_exit_indices(path[-1], input_dir))
 		if allowed <= 0.0 and is_active_turn_segment() and can_start_turn(path[-1], input_dir):
 			allowed = step
 		path[-1] += input_dir * allowed
 		current_dir = input_dir
 	elif input_dir == -seg_dir:
+		clear_contact_exit()
 		if path.size() == 2:
 			var dist_to_base = path[-1].distance_to(path[0])
 			if dist_to_base - step <= 8.0:
@@ -407,9 +454,12 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 		if allowed > 0.001:
 			var prev_dir = seg_dir
 			var cross = prev_dir.x * input_dir.y - prev_dir.y * input_dir.x
+			var contact_exit_indices = get_contact_exit_segment_indices(head_pos, input_dir)
 
 			path.append(head_pos)
 			current_dir = input_dir
+			contact_exit_segment_indices = contact_exit_indices
+			contact_exit_dir = input_dir
 			path[-1] += input_dir * allowed
 
 			var turn_sprite = Sprite2D.new()

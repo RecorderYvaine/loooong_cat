@@ -478,6 +478,7 @@ func run_reverse_after_collision_checks() -> bool:
 	]
 	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()
+	cat.clear_contact_exit()
 	cat.update_visuals()
 
 	Input.action_press("ui_left")
@@ -704,6 +705,7 @@ func run_multi_input_checks() -> bool:
 	]
 	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()
+	cat.clear_contact_exit()
 	cat.update_visuals()
 	release_all_test_inputs()
 
@@ -837,6 +839,7 @@ func run_overlap_movement_checks() -> bool:
 	]
 	cat.current_dir = Vector2.DOWN
 	cat.turns_data.clear()
+	cat.clear_contact_exit()
 	cat.update_visuals()
 
 	head_before = cat.path[-1]
@@ -881,6 +884,18 @@ func run_overlap_movement_checks() -> bool:
 			"current": Vector2.DOWN,
 			"turn": Vector2.RIGHT,
 		},
+		{
+			"name": "horizontal edge contact turns left along edge",
+			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 9.0)],
+			"current": Vector2.UP,
+			"turn": Vector2.LEFT,
+		},
+		{
+			"name": "horizontal edge contact turns right along edge",
+			"path": [Vector2(30.5, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 9.0)],
+			"current": Vector2.UP,
+			"turn": Vector2.RIGHT,
+		},
 	]
 
 	for contact_case in contact_cases:
@@ -889,6 +904,7 @@ func run_overlap_movement_checks() -> bool:
 			cat.path.append(point)
 		cat.current_dir = contact_case.current
 		cat.turns_data.clear()
+		cat.clear_contact_exit()
 		cat.update_visuals()
 
 		head_before = cat.path[-1]
@@ -916,6 +932,7 @@ func run_overlap_movement_checks() -> bool:
 			cat.path.append(point)
 		cat.current_dir = contact_case.current
 		cat.turns_data.clear()
+		cat.clear_contact_exit()
 		cat.update_visuals()
 		release_all_test_inputs()
 
@@ -946,6 +963,7 @@ func run_overlap_movement_checks() -> bool:
 	]
 	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()
+	cat.clear_contact_exit()
 	cat.update_visuals()
 
 	head_before = cat.path[-1]
@@ -969,6 +987,7 @@ func run_overlap_movement_checks() -> bool:
 	]
 	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()
+	cat.clear_contact_exit()
 	cat.update_visuals()
 
 	cat.move_cat(Vector2.UP, 1.0)
