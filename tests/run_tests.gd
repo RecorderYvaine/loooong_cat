@@ -886,13 +886,13 @@ func run_overlap_movement_checks() -> bool:
 		},
 		{
 			"name": "horizontal edge contact turns left along edge",
-			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 10.0)],
+			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 12.0)],
 			"current": Vector2.UP,
 			"turn": Vector2.LEFT,
 		},
 		{
 			"name": "horizontal edge contact turns right along edge",
-			"path": [Vector2(30.5, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 10.0)],
+			"path": [Vector2(30.5, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 12.0)],
 			"current": Vector2.UP,
 			"turn": Vector2.RIGHT,
 		},
@@ -954,6 +954,36 @@ func run_overlap_movement_checks() -> bool:
 			printerr("FAILED: ", contact_case.name, " should keep moving after contact turn through input processing. after_turn=", head_after_turn, " path=", cat.path)
 			quit(1)
 			return false
+
+	cat.path = [
+		Vector2(80.5, 0.0),
+		Vector2(30.5, 0.0),
+		Vector2(30.5, 60.0),
+		Vector2(19.5, 60.0),
+		Vector2(19.5, 12.0),
+	]
+	cat.current_dir = Vector2.UP
+	cat.turns_data.clear()
+	cat.clear_contact_exit()
+	cat.contact_exit_segment_indices = [1]
+	cat.contact_exit_dir = Vector2.UP
+	cat.update_visuals()
+
+	head_before = cat.path[-1]
+	for i in range(6):
+		cat.move_cat(Vector2.UP, 1.0)
+	if cat.path[-1].y >= head_before.y - 4.0:
+		printerr("FAILED: contact exit should keep moving near a neighboring turn cap. before=", head_before, " path=", cat.path)
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+	var head_after_reverse = cat.path[-1]
+	cat.move_cat(Vector2.UP, 1.0)
+	if cat.path[-1].y >= head_after_reverse.y:
+		printerr("FAILED: contact exit should resume forward movement after a small reverse. before=", head_after_reverse, " path=", cat.path)
+		quit(1)
+		return false
 
 	cat.path = [
 		Vector2(0.5, 0.0),

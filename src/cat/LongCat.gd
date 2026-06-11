@@ -12,7 +12,7 @@ const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HA
 const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
 const REVERSE_POP_INPUT_LOCK_TIME: float = 0.12
 const CONTACT_TURN_EDGE_SLOP: float = 1.0
-const BODY_CONTACT_GAP: float = 1.0
+const BODY_CONTACT_GAP: float = 2.0
 const EFFECTIVE_COLLISION_CLEARANCE: float = COLLISION_CLEARANCE + BODY_CONTACT_GAP
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
@@ -252,8 +252,15 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float, i
 	return max(0.0, allowed_step)
 
 func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
-	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y)) - Vector2(EFFECTIVE_COLLISION_CLEARANCE, EFFECTIVE_COLLISION_CLEARANCE)
-	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(EFFECTIVE_COLLISION_CLEARANCE, EFFECTIVE_COLLISION_CLEARANCE)
+	var segment = p2 - p1
+	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y))
+	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y))
+	if abs(segment.x) >= abs(segment.y):
+		min_pos.y -= EFFECTIVE_COLLISION_CLEARANCE
+		max_pos.y += EFFECTIVE_COLLISION_CLEARANCE
+	else:
+		min_pos.x -= EFFECTIVE_COLLISION_CLEARANCE
+		max_pos.x += EFFECTIVE_COLLISION_CLEARANCE
 	return Rect2(min_pos, max_pos - min_pos)
 
 func is_point_in_bounds(pos: Vector2, bounds: Rect2) -> bool:
@@ -264,7 +271,7 @@ func can_move_from_inside_segment_bounds(start_pos: Vector2, dir: Vector2, step:
 	if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
 		return false
 	if is_dir_parallel_to_segment(dir, p1, p2):
-		return false
+		return is_near_segment_collision_edge(start_pos, p1, p2)
 	return true
 
 func can_start_contact_exit_from_segment(start_pos: Vector2, dir: Vector2, step: float, p1: Vector2, p2: Vector2) -> bool:
@@ -401,7 +408,6 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 		path[-1] += input_dir * allowed
 		current_dir = input_dir
 	elif input_dir == -seg_dir:
-		clear_contact_exit()
 		if path.size() == 2:
 			var dist_to_base = path[-1].distance_to(path[0])
 			if dist_to_base - step <= 8.0:
@@ -425,6 +431,7 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 				auto_turn_dir = Vector2.ZERO
 				queued_turn_dir = Vector2.ZERO
 				retract_active_turn_on_release = false
+				clear_contact_exit()
 				reverse_pop_input_lock_dir = input_dir
 				reverse_pop_input_lock_time = REVERSE_POP_INPUT_LOCK_TIME
 			else:
