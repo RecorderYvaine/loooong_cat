@@ -22,6 +22,8 @@ func run():
 		return
 	if not await run_released_turn_exit_checks():
 		return
+	if not await run_reverse_during_turn_exit_checks():
+		return
 	if not await run_overlap_movement_checks():
 		return
 	print("ALL TESTS PASSED")
@@ -184,10 +186,10 @@ func run_blocked_turn_checks() -> bool:
 	cat.current_dir = Vector2.RIGHT
 	cat.turns_data.clear()
 	cat.update_visuals()
-	cat.move_cat(Vector2.DOWN, 1.0)
+	cat.move_cat(Vector2.DOWN, cat.TURN_EXIT_ADVANCE)
 
 	if cat.path.size() != 4:
-		printerr("FAILED: 9px turn should auto-advance before starting. path=", cat.path)
+		printerr("FAILED: turn-ready turn should auto-advance before starting. path=", cat.path)
 		quit(1)
 		return false
 	if abs(cat.path[-1].distance_to(cat.path[-2]) - cat.TURN_READY_DIST) > 0.001:
@@ -255,7 +257,18 @@ func run_early_turn_completion_checks() -> bool:
 	cat.move_cat(Vector2.DOWN, 1.0)
 
 	if cat.path.size() != path_size_before:
-		printerr("FAILED: early turn should add the one-pixel turn exit before appending. path=", cat.path)
+		printerr("FAILED: early turn should keep completing the turn exit before appending. path=", cat.path)
+		quit(1)
+		return false
+	if abs(cat.path[-1].distance_to(cat.path[-2]) - (cat.MIN_TURN_DIST + 1.0)) > 0.001:
+		printerr("FAILED: early turn should advance through the first exit pixel. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+
+	if cat.path.size() != path_size_before:
+		printerr("FAILED: early turn should add the full turn exit before appending. path=", cat.path)
 		quit(1)
 		return false
 	if abs(cat.path[-1].distance_to(cat.path[-2]) - cat.TURN_READY_DIST) > 0.001:
@@ -318,7 +331,10 @@ func run_queued_input_process_checks() -> bool:
 		quit(1)
 		return false
 
-	cat._process(1.0 / cat.speed)
+	var safety = 8
+	while safety > 0 and cat.path.size() == 3:
+		cat._process(1.0 / cat.speed)
+		safety -= 1
 	Input.action_release("ui_down")
 
 	if cat.path.size() != 4:
@@ -385,6 +401,45 @@ func run_released_turn_exit_checks() -> bool:
 		return false
 	if cat.current_dir != Vector2.DOWN:
 		printerr("FAILED: next turn after released exit should face down. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_reverse_during_turn_exit_checks() -> bool:
+	print("Running reverse during turn exit checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(10.5, -40.0),
+	]
+	cat.current_dir = Vector2.RIGHT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	Input.action_press("ui_left")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_left")
+
+	if cat.path[-1].x >= 10.5:
+		printerr("FAILED: reverse input during turn exit should move backward, not auto-forward. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.RIGHT:
+		printerr("FAILED: partial reverse during turn exit should keep segment direction. current_dir=", cat.current_dir)
 		quit(1)
 		return false
 

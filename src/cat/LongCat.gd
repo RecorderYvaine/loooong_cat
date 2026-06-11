@@ -4,7 +4,7 @@ class_name LongCat
 @export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
 const TURN_CLEARANCE: float = 4.0
-const TURN_EXIT_ADVANCE: float = 1.0
+const TURN_EXIT_ADVANCE: float = 2.0
 const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
 const BODY_COLLISION_HALF_WIDTH: float = 4.5
 const HEAD_COLLISION_HALF_WIDTH: float = 5.5
@@ -75,7 +75,7 @@ func _process(delta: float) -> void:
 				queued_turn_dir = Vector2.ZERO
 			else:
 				raw_input = current_dir
-		elif path.size() > 2 and head_dist >= MIN_TURN_DIST and head_dist < TURN_READY_DIST:
+		elif raw_input == Vector2.ZERO and path.size() > 2 and head_dist >= MIN_TURN_DIST and head_dist < TURN_READY_DIST:
 			raw_input = current_dir
 		
 	var is_tap = false
