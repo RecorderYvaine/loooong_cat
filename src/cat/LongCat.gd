@@ -12,6 +12,8 @@ const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HA
 const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
 const REVERSE_POP_INPUT_LOCK_TIME: float = 0.12
 const CONTACT_TURN_EDGE_SLOP: float = 1.0
+const BODY_CONTACT_GAP: float = 1.0
+const EFFECTIVE_COLLISION_CLEARANCE: float = COLLISION_CLEARANCE + BODY_CONTACT_GAP
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -250,8 +252,8 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float, i
 	return max(0.0, allowed_step)
 
 func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
-	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y)) - Vector2(COLLISION_CLEARANCE, COLLISION_CLEARANCE)
-	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(COLLISION_CLEARANCE, COLLISION_CLEARANCE)
+	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y)) - Vector2(EFFECTIVE_COLLISION_CLEARANCE, EFFECTIVE_COLLISION_CLEARANCE)
+	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(EFFECTIVE_COLLISION_CLEARANCE, EFFECTIVE_COLLISION_CLEARANCE)
 	return Rect2(min_pos, max_pos - min_pos)
 
 func is_point_in_bounds(pos: Vector2, bounds: Rect2) -> bool:
@@ -286,7 +288,7 @@ func get_distance_from_segment_centerline(pos: Vector2, p1: Vector2, p2: Vector2
 	return abs(pos.x - center_x)
 
 func is_near_segment_collision_edge(pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
-	return get_distance_from_segment_centerline(pos, p1, p2) >= COLLISION_CLEARANCE - CONTACT_TURN_EDGE_SLOP
+	return get_distance_from_segment_centerline(pos, p1, p2) >= EFFECTIVE_COLLISION_CLEARANCE - CONTACT_TURN_EDGE_SLOP
 
 func is_dir_parallel_to_segment(dir: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	var segment = p2 - p1
@@ -297,6 +299,8 @@ func is_dir_parallel_to_segment(dir: Vector2, p1: Vector2, p2: Vector2) -> bool:
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 	var end_pos = start_pos + dir * MIN_TURN_DIST
 	var check_points = max(0, path.size() - 3)
+	var inside_any_bounds = false
+	var exits_or_skims_contact = false
 
 	for i in range(check_points):
 		var p1 = path[i]
@@ -304,8 +308,11 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 		var bounds = get_segment_collision_bounds(p1, p2)
 		var starts_inside = is_point_in_bounds(start_pos, bounds)
 		if starts_inside:
-			if not can_start_contact_exit_from_segment(start_pos, dir, MIN_TURN_DIST, p1, p2):
+			inside_any_bounds = true
+			if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
 				return false
+			if can_start_contact_exit_from_segment(start_pos, dir, MIN_TURN_DIST, p1, p2):
+				exits_or_skims_contact = true
 			continue
 
 		if dir.x != 0:
@@ -321,6 +328,8 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 				if dir.y < 0 and start_pos.y > bounds.end.y and start_pos.y - MIN_TURN_DIST < bounds.end.y:
 					return false
 
+	if inside_any_bounds:
+		return exits_or_skims_contact
 	return true
 
 func get_contact_exit_segment_indices(start_pos: Vector2, dir: Vector2) -> Array[int]:

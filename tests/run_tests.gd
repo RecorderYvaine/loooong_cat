@@ -886,13 +886,13 @@ func run_overlap_movement_checks() -> bool:
 		},
 		{
 			"name": "horizontal edge contact turns left along edge",
-			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 9.0)],
+			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 10.0)],
 			"current": Vector2.UP,
 			"turn": Vector2.LEFT,
 		},
 		{
 			"name": "horizontal edge contact turns right along edge",
-			"path": [Vector2(30.5, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 9.0)],
+			"path": [Vector2(30.5, 0.0), Vector2(0.5, 0.0), Vector2(0.5, 30.0), Vector2(15.5, 30.0), Vector2(15.5, 10.0)],
 			"current": Vector2.UP,
 			"turn": Vector2.RIGHT,
 		},
@@ -954,6 +954,24 @@ func run_overlap_movement_checks() -> bool:
 			printerr("FAILED: ", contact_case.name, " should keep moving after contact turn through input processing. after_turn=", head_after_turn, " path=", cat.path)
 			quit(1)
 			return false
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(30.5, 0.0),
+		Vector2(30.5, 30.0),
+		Vector2(15.5, 30.0),
+		Vector2(15.5, 9.0),
+	]
+	cat.current_dir = Vector2.UP
+	cat.turns_data.clear()
+	cat.clear_contact_exit()
+	cat.update_visuals()
+
+	cat.move_cat(Vector2.LEFT, 1.0)
+	if cat.current_dir == Vector2.LEFT:
+		printerr("FAILED: 1px edge gap should be treated as too close to turn along the body. path=", cat.path)
+		quit(1)
+		return false
 
 	cat.path = [
 		Vector2(0.5, 0.0),
