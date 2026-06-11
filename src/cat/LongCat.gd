@@ -62,13 +62,16 @@ func _input(event: InputEvent) -> void:
 		preferred_input_dir = Vector2.RIGHT
 
 func _process(delta: float) -> void:
+	var pressed_dirs = get_pressed_input_dirs()
 	var raw_input = get_input_dir()
 	
 	var in_turn = is_active_turn_segment()
 	var head_dist = get_head_segment_length()
 			
 	if in_turn:
-		if raw_input != Vector2.ZERO and raw_input != current_dir and raw_input != -current_dir:
+		if raw_input == Vector2.ZERO:
+			auto_turn_dir = current_dir
+		elif raw_input != current_dir and raw_input != -current_dir:
 			queued_turn_dir = raw_input
 			auto_turn_dir = current_dir
 		elif raw_input == current_dir or raw_input == -current_dir:
@@ -96,8 +99,17 @@ func _process(delta: float) -> void:
 	
 	if raw_input == Vector2.ZERO:
 		blocked_input_dir = Vector2.ZERO
+	elif raw_input != current_dir and raw_input != -current_dir:
+		var can_use_raw_input = can_progress_with_input(raw_input, max(speed * delta, 1.0), should_fallback_to_current_dir(raw_input, pressed_dirs))
+		if can_use_raw_input:
+			blocked_input_dir = Vector2.ZERO
+		elif should_fallback_to_current_dir(raw_input, pressed_dirs):
+			input_dir = current_dir
+		else:
+			blocked_input_dir = raw_input
+			input_dir = Vector2.ZERO
 	elif raw_input == blocked_input_dir:
-		if raw_input != current_dir and raw_input != -current_dir:
+		if should_fallback_to_current_dir(raw_input, pressed_dirs):
 			input_dir = current_dir
 		else:
 			input_dir = Vector2.ZERO
@@ -124,6 +136,10 @@ func _process(delta: float) -> void:
 	update_visuals()
 
 func get_input_dir() -> Vector2:
+	var pressed_dirs = get_pressed_input_dirs()
+	return select_preferred_input_dir(pressed_dirs)
+
+func get_pressed_input_dirs() -> Array[Vector2]:
 	var pressed_dirs: Array[Vector2] = []
 	if Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W):
 		pressed_dirs.append(Vector2.UP)
@@ -133,7 +149,9 @@ func get_input_dir() -> Vector2:
 		pressed_dirs.append(Vector2.LEFT)
 	if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_D):
 		pressed_dirs.append(Vector2.RIGHT)
+	return pressed_dirs
 
+func select_preferred_input_dir(pressed_dirs: Array[Vector2]) -> Vector2:
 	if pressed_dirs.is_empty():
 		preferred_input_dir = Vector2.ZERO
 		return Vector2.ZERO
@@ -143,6 +161,32 @@ func get_input_dir() -> Vector2:
 	if pressed_dirs.has(preferred_input_dir):
 		return preferred_input_dir
 	return pressed_dirs[0]
+
+func should_fallback_to_current_dir(input_dir: Vector2, pressed_dirs: Array[Vector2]) -> bool:
+	return input_dir != Vector2.ZERO and input_dir != current_dir and input_dir != -current_dir and pressed_dirs.has(current_dir)
+
+func can_progress_with_input(input_dir: Vector2, step: float, allow_forward_advance: bool) -> bool:
+	if input_dir == Vector2.ZERO or path.size() < 2:
+		return false
+
+	var head_pos = path[-1]
+	var prev_pos = path[-2]
+	var seg_dir = (head_pos - prev_pos).normalized()
+	if seg_dir == Vector2.ZERO:
+		seg_dir = current_dir
+
+	if input_dir == seg_dir:
+		return get_allowed_step(head_pos, input_dir, step) > 0.0
+	if input_dir == -seg_dir:
+		return true
+
+	var dist_from_last_corner = head_pos.distance_to(prev_pos)
+	if allow_forward_advance and dist_from_last_corner < TURN_READY_DIST:
+		var advance = min(step, TURN_READY_DIST - dist_from_last_corner)
+		if get_allowed_step(head_pos, seg_dir, advance) > 0.0:
+			return true
+
+	return can_start_turn(head_pos, input_dir)
 
 func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -> float:
 	var allowed_step = requested_step
@@ -178,8 +222,37 @@ func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
 	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(COLLISION_CLEARANCE, COLLISION_CLEARANCE)
 	return Rect2(min_pos, max_pos - min_pos)
 
+func is_point_in_bounds(pos: Vector2, bounds: Rect2) -> bool:
+	return pos.x >= bounds.position.x and pos.x <= bounds.end.x and pos.y >= bounds.position.y and pos.y <= bounds.end.y
+
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
-	return get_allowed_step(start_pos, dir, MIN_TURN_DIST) >= MIN_TURN_DIST
+	var end_pos = start_pos + dir * MIN_TURN_DIST
+	var check_points = max(0, path.size() - 3)
+
+	for i in range(check_points):
+		var p1 = path[i]
+		var p2 = path[i+1]
+		var bounds = get_segment_collision_bounds(p1, p2)
+		var starts_inside = is_point_in_bounds(start_pos, bounds)
+		if starts_inside:
+			if is_point_in_bounds(end_pos, bounds):
+				return false
+			continue
+
+		if dir.x != 0:
+			if start_pos.y >= bounds.position.y and start_pos.y <= bounds.end.y:
+				if dir.x > 0 and start_pos.x < bounds.position.x and start_pos.x + MIN_TURN_DIST > bounds.position.x:
+					return false
+				if dir.x < 0 and start_pos.x > bounds.end.x and start_pos.x - MIN_TURN_DIST < bounds.end.x:
+					return false
+		elif dir.y != 0:
+			if start_pos.x >= bounds.position.x and start_pos.x <= bounds.end.x:
+				if dir.y > 0 and start_pos.y < bounds.position.y and start_pos.y + MIN_TURN_DIST > bounds.position.y:
+					return false
+				if dir.y < 0 and start_pos.y > bounds.end.y and start_pos.y - MIN_TURN_DIST < bounds.end.y:
+					return false
+
+	return true
 
 func get_head_segment_length() -> float:
 	if path.size() < 2:
@@ -247,11 +320,20 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 		if dist_from_last_corner < TURN_READY_DIST:
 			var advance = min(step, TURN_READY_DIST - dist_from_last_corner)
 			var allowed_advance = get_allowed_step(head_pos, seg_dir, advance)
-			path[-1] += seg_dir * allowed_advance
-			current_dir = seg_dir
-			if allowed_advance < advance:
+			if allowed_advance > 0.0:
+				path[-1] += seg_dir * allowed_advance
+				current_dir = seg_dir
+				if allowed_advance < advance:
+					blocked_input_dir = input_dir
+				return
+
+			if not can_start_turn(head_pos, input_dir):
 				blocked_input_dir = input_dir
-			return
+				auto_turn_dir = Vector2.ZERO
+				queued_turn_dir = Vector2.ZERO
+				return
+
+			blocked_input_dir = Vector2.ZERO
 
 		if not can_start_turn(head_pos, input_dir):
 			blocked_input_dir = input_dir
@@ -260,7 +342,9 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 			return
 
 		var allowed = get_allowed_step(head_pos, input_dir, step)
-		if allowed > 0.0:
+		if allowed <= 0.0 and can_start_turn(head_pos, input_dir):
+			allowed = step
+		if allowed > 0.001:
 			var prev_dir = seg_dir
 			var cross = prev_dir.x * input_dir.y - prev_dir.y * input_dir.x
 

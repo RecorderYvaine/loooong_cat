@@ -575,6 +575,7 @@ func run_reverse_active_turn_checks() -> bool:
 
 func run_multi_input_checks() -> bool:
 	print("Running multi-input checks...")
+	release_all_test_inputs()
 	var cat_scene = load("res://src/cat/LongCat.tscn")
 	if cat_scene == null:
 		printerr("FAILED to load LongCat.tscn")
@@ -614,29 +615,28 @@ func run_multi_input_checks() -> bool:
 	await process_frame
 
 	cat.path = [
-		Vector2(0.5, 0.0),
-		Vector2(0.5, -40.0),
-		Vector2(1.0, -40.0),
-		Vector2(11.0, -40.0),
+		Vector2(0.5, -28.0),
+		Vector2(18.5, -28.0),
+		Vector2(18.5, -40.0),
+		Vector2(9.5, -40.0),
 	]
-	cat.current_dir = Vector2.RIGHT
+	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()
 	cat.update_visuals()
+	release_all_test_inputs()
 
 	var head_before = cat.path[-1]
-	Input.action_press("ui_left")
 	Input.action_press("ui_down")
 	cat.preferred_input_dir = Vector2.DOWN
 	cat._process(1.0 / cat.speed)
-	Input.action_release("ui_left")
 	Input.action_release("ui_down")
 
-	if cat.current_dir != Vector2.RIGHT:
-		printerr("FAILED: blocked latest input should keep the previous direction. current_dir=", cat.current_dir)
+	if cat.current_dir != Vector2.LEFT:
+		printerr("FAILED: blocked latest input should preserve previous direction. current_dir=", cat.current_dir)
 		quit(1)
 		return false
-	if cat.path[-1].x <= head_before.x:
-		printerr("FAILED: blocked latest input should continue moving forward. before=", head_before, " path=", cat.path)
+	if cat.path[-1] != head_before:
+		printerr("FAILED: blocked latest input without forward held should not move forward. before=", head_before, " path=", cat.path)
 		quit(1)
 		return false
 	if cat.turns_data.size() != 0:
@@ -644,8 +644,49 @@ func run_multi_input_checks() -> bool:
 		quit(1)
 		return false
 
+	Input.action_press("ui_left")
+	Input.action_press("ui_down")
+	cat.preferred_input_dir = Vector2.DOWN
+	cat._process(1.0 / cat.speed)
+
+	if cat.current_dir != Vector2.LEFT:
+		Input.action_release("ui_left")
+		Input.action_release("ui_down")
+		printerr("FAILED: blocked latest input with forward held should keep current direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if cat.path[-1].x >= head_before.x:
+		Input.action_release("ui_left")
+		Input.action_release("ui_down")
+		printerr("FAILED: blocked latest input with forward held should continue moving forward. before=", head_before, " path=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 0:
+		Input.action_release("ui_left")
+		Input.action_release("ui_down")
+		printerr("FAILED: blocked latest input with forward held should not create a blocked turn. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	var safety = 32
+	while safety > 0 and cat.current_dir == Vector2.LEFT:
+		cat._process(1.0 / cat.speed)
+		safety -= 1
+	Input.action_release("ui_left")
+	Input.action_release("ui_down")
+
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: held latest turn should start as soon as it becomes available. current_dir=", cat.current_dir, " path=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 1:
+		printerr("FAILED: held latest turn should create one turn once available. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
 	cat.queue_free()
 	await process_frame
+	release_all_test_inputs()
 	return true
 
 func run_overlap_movement_checks() -> bool:
@@ -679,9 +720,42 @@ func run_overlap_movement_checks() -> bool:
 		quit(1)
 		return false
 
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(30.5, 0.0),
+		Vector2(30.5, 9.0),
+		Vector2(15.5, 9.0),
+	]
+	cat.current_dir = Vector2.LEFT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	head_before = cat.path[-1]
+	cat.move_cat(Vector2.LEFT, 1.0)
+	if cat.path[-1] != head_before:
+		printerr("FAILED: forward movement into overlapped body should still be blocked. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: turn out of overlapped body should be allowed when exit space is clear. current_dir=", cat.current_dir, " path=", cat.path)
+		quit(1)
+		return false
+	if cat.path.size() != 5:
+		printerr("FAILED: turn out of overlapped body should append a turn point. path=", cat.path)
+		quit(1)
+		return false
+
 	cat.queue_free()
 	await process_frame
 	return true
+
+func release_all_test_inputs() -> void:
+	Input.action_release("ui_up")
+	Input.action_release("ui_down")
+	Input.action_release("ui_left")
+	Input.action_release("ui_right")
 
 func drive_cat(cat: LongCat, dir: Vector2, pixels: int) -> void:
 	for i in range(pixels):
