@@ -613,6 +613,46 @@ func run_reverse_active_turn_checks() -> bool:
 
 	cat.queue_free()
 	await process_frame
+
+	cat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	drive_cat(cat, Vector2.UP, 28)
+	drive_cat(cat, Vector2.RIGHT, 12)
+	drive_cat(cat, Vector2.UP, 12)
+
+	if cat.path.size() != 4:
+		printerr("FAILED: expected two completed turns before reverse input lock check. path=", cat.path)
+		quit(1)
+		return false
+
+	Input.action_press("ui_down")
+	safety = 32
+	while safety > 0 and cat.path.size() == 4:
+		cat._process(1.0 / cat.speed)
+		safety -= 1
+
+	if cat.path.size() != 3:
+		Input.action_release("ui_down")
+		printerr("FAILED: reverse should retract the latest segment back to the previous turn. path=", cat.path)
+		quit(1)
+		return false
+
+	var path_after_pop = cat.path.duplicate()
+	for i in range(3):
+		cat._process(1.0 / cat.speed)
+
+	Input.action_release("ui_down")
+
+	if cat.path != path_after_pop:
+		printerr("FAILED: held reverse input should be briefly ignored after popping a turn. before=", path_after_pop, " after=", cat.path)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
 	return true
 
 func run_multi_input_checks() -> bool:
@@ -813,6 +853,45 @@ func run_overlap_movement_checks() -> bool:
 		return false
 	if cat.path.size() != 5:
 		printerr("FAILED: left turn from body contact should append a turn point. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(30.5, 0.0),
+		Vector2(30.5, 1.0),
+		Vector2(15.5, 1.0),
+	]
+	cat.current_dir = Vector2.LEFT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	head_before = cat.path[-1]
+	cat.move_cat(Vector2.LEFT, 1.0)
+	if cat.path[-1] != head_before:
+		printerr("FAILED: head resting near horizontal body should not keep moving forward into it. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: head resting near horizontal body should be able to turn down away from it. current_dir=", cat.current_dir, " path=", cat.path)
+		quit(1)
+		return false
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(30.5, 0.0),
+		Vector2(30.5, -1.0),
+		Vector2(15.5, -1.0),
+	]
+	cat.current_dir = Vector2.LEFT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	cat.move_cat(Vector2.UP, 1.0)
+	if cat.current_dir != Vector2.UP:
+		printerr("FAILED: head resting near horizontal body should be able to turn up away from it. current_dir=", cat.current_dir, " path=", cat.path)
 		quit(1)
 		return false
 

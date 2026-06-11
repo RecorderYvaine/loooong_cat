@@ -10,6 +10,7 @@ const BODY_COLLISION_HALF_WIDTH: float = 4.5
 const HEAD_COLLISION_HALF_WIDTH: float = 5.5
 const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
 const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
+const REVERSE_POP_INPUT_LOCK_TIME: float = 0.12
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -35,6 +36,8 @@ var auto_turn_dir: Vector2 = Vector2.ZERO
 var queued_turn_dir: Vector2 = Vector2.ZERO
 var preferred_input_dir: Vector2 = Vector2.ZERO
 var retract_active_turn_on_release: bool = false
+var reverse_pop_input_lock_dir: Vector2 = Vector2.ZERO
+var reverse_pop_input_lock_time: float = 0.0
 
 func _ready() -> void:
 	turn_segments.position = Vector2.ZERO
@@ -65,6 +68,7 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	var pressed_dirs = get_pressed_input_dirs()
 	var raw_input = get_input_dir()
+	raw_input = apply_reverse_pop_input_lock(raw_input, delta)
 	
 	var in_turn = is_active_turn_segment()
 	var head_dist = get_head_segment_length()
@@ -145,6 +149,21 @@ func _process(delta: float) -> void:
 func get_input_dir() -> Vector2:
 	var pressed_dirs = get_pressed_input_dirs()
 	return select_preferred_input_dir(pressed_dirs)
+
+func apply_reverse_pop_input_lock(input_dir: Vector2, delta: float) -> Vector2:
+	if reverse_pop_input_lock_time <= 0.0:
+		return input_dir
+
+	if input_dir != reverse_pop_input_lock_dir:
+		reverse_pop_input_lock_time = 0.0
+		reverse_pop_input_lock_dir = Vector2.ZERO
+		return input_dir
+
+	reverse_pop_input_lock_time -= delta
+	if reverse_pop_input_lock_time <= 0.0:
+		reverse_pop_input_lock_dir = Vector2.ZERO
+		return input_dir
+	return Vector2.ZERO
 
 func get_pressed_input_dirs() -> Array[Vector2]:
 	var pressed_dirs: Array[Vector2] = []
@@ -241,6 +260,12 @@ func is_moving_deeper_into_segment_bounds(start_pos: Vector2, end_pos: Vector2, 
 	var center_x = (p1.x + p2.x) / 2.0
 	return abs(end_pos.x - center_x) < abs(start_pos.x - center_x) - 0.001
 
+func is_dir_parallel_to_segment(dir: Vector2, p1: Vector2, p2: Vector2) -> bool:
+	var segment = p2 - p1
+	if abs(segment.x) >= abs(segment.y):
+		return abs(dir.x) > 0.0
+	return abs(dir.y) > 0.0
+
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 	var end_pos = start_pos + dir * MIN_TURN_DIST
 	var check_points = max(0, path.size() - 3)
@@ -251,9 +276,9 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 		var bounds = get_segment_collision_bounds(p1, p2)
 		var starts_inside = is_point_in_bounds(start_pos, bounds)
 		if starts_inside:
-			if is_point_in_bounds(end_pos, bounds):
-				return false
 			if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
+				return false
+			if is_dir_parallel_to_segment(dir, p1, p2):
 				return false
 			continue
 
@@ -334,6 +359,8 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 				auto_turn_dir = Vector2.ZERO
 				queued_turn_dir = Vector2.ZERO
 				retract_active_turn_on_release = false
+				reverse_pop_input_lock_dir = input_dir
+				reverse_pop_input_lock_time = REVERSE_POP_INPUT_LOCK_TIME
 			else:
 				path[-1] += input_dir * step
 				if is_active_turn_segment():
