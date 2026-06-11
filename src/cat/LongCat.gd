@@ -247,10 +247,12 @@ func pixel_align_body_segment(pos: Vector2, dir: Vector2) -> Vector2:
 		aligned.x = floor(aligned.x) + 0.5
 	return aligned
 
-func pixel_align_head_group(pos: Vector2, rotation: float) -> Vector2:
-	var sprite_origin = head_sprite.position.rotated(rotation)
-	var world_origin = pos + sprite_origin
-	return Vector2(round(world_origin.x), round(world_origin.y)) - sprite_origin
+func pixel_align_face_pos(pos: Vector2, dir: Vector2) -> Vector2:
+	if abs(dir.x) > 0.0:
+		return Vector2(round(pos.x), floor(pos.y) + 0.5)
+	if abs(dir.y) > 0.0:
+		return Vector2(floor(pos.x) + 0.5, round(pos.y))
+	return pos
 
 func get_turn_clearance(progress: float) -> float:
 	return round(TURN_CLEARANCE * clamp(progress, 0.0, 1.0))
@@ -294,9 +296,10 @@ func update_visuals() -> void:
 	else:
 		head_group.rotation = target_rotation
 
-	head_group.position = path[-1] - FACE_LOCAL.rotated(head_group.rotation)
+	var face_pos = path[-1]
 	if not in_turn:
-		head_group.position = pixel_align_head_group(head_group.position, head_group.rotation)
+		face_pos = pixel_align_face_pos(path[-1], current_dir)
+	head_group.position = face_pos - FACE_LOCAL.rotated(head_group.rotation)
 
 	# 绘制直身子
 	var seg_count = path.size() - 1

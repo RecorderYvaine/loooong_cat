@@ -60,6 +60,8 @@ func run_turn_visual_state_checks() -> bool:
 		return false
 	if not assert_head_texture_pixel_aligned(cat, "Head texture origin is pixel-aligned after right turn"):
 		return false
+	if not assert_head_face_on_body_grid(cat, "Head face is aligned to horizontal body after right turn"):
+		return false
 	if cat.turns_data.size() != 1:
 		printerr("FAILED: expected one turn after moving right. turns=", cat.turns_data.size())
 		quit(1)
@@ -91,11 +93,15 @@ func run_turn_visual_state_checks() -> bool:
 	drive_cat(cat, Vector2.DOWN, 40)
 	if not assert_head_texture_pixel_aligned(cat, "Head texture origin is pixel-aligned after down turn"):
 		return false
+	if not assert_head_face_on_body_grid(cat, "Head face is aligned to vertical body after down turn"):
+		return false
 	drive_cat(cat, Vector2.LEFT, 40)
 
 	if not assert_angle_close(cat.head_group.rotation, -PI / 2.0, "Head faces exactly left after a completed left turn"):
 		return false
 	if not assert_head_texture_pixel_aligned(cat, "Head texture origin is pixel-aligned after left turn"):
+		return false
+	if not assert_head_face_on_body_grid(cat, "Head face is aligned to horizontal body after left turn"):
 		return false
 	if cat.turns_data.size() < 3:
 		printerr("FAILED: expected turn data for right/down/left path. turns=", cat.turns_data.size())
@@ -393,4 +399,20 @@ func assert_head_texture_pixel_aligned(cat: LongCat, message: String) -> bool:
 		printerr("FAILED: ", message, ". origin=", origin, " rotation=", cat.head_group.rotation)
 		quit(1)
 		return false
+	return true
+
+func assert_head_face_on_body_grid(cat: LongCat, message: String) -> bool:
+	var face = cat.head_group.position + cat.FACE_LOCAL.rotated(cat.head_group.rotation)
+	if abs(cat.current_dir.x) > 0.0:
+		var frac_y = face.y - floor(face.y)
+		if abs(face.x - round(face.x)) > 0.001 or abs(frac_y - 0.5) > 0.001:
+			printerr("FAILED: ", message, ". face=", face, " dir=", cat.current_dir)
+			quit(1)
+			return false
+	elif abs(cat.current_dir.y) > 0.0:
+		var frac_x = face.x - floor(face.x)
+		if abs(frac_x - 0.5) > 0.001 or abs(face.y - round(face.y)) > 0.001:
+			printerr("FAILED: ", message, ". face=", face, " dir=", cat.current_dir)
+			quit(1)
+			return false
 	return true
