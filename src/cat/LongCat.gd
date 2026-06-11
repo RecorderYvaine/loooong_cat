@@ -33,6 +33,7 @@ var blocked_input_dir: Vector2 = Vector2.ZERO
 var prev_raw_input: Vector2 = Vector2.ZERO
 var auto_turn_dir: Vector2 = Vector2.ZERO
 var queued_turn_dir: Vector2 = Vector2.ZERO
+var preferred_input_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	turn_segments.position = Vector2.ZERO
@@ -47,6 +48,18 @@ func _ready() -> void:
 	path.append(start_point + Vector2(0, -8.0))
 	current_dir = Vector2.UP
 	update_visuals()
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.echo:
+		return
+	if event.is_action_pressed("ui_up") or (event is InputEventKey and event.pressed and event.keycode == KEY_W):
+		preferred_input_dir = Vector2.UP
+	elif event.is_action_pressed("ui_down") or (event is InputEventKey and event.pressed and event.keycode == KEY_S):
+		preferred_input_dir = Vector2.DOWN
+	elif event.is_action_pressed("ui_left") or (event is InputEventKey and event.pressed and event.keycode == KEY_A):
+		preferred_input_dir = Vector2.LEFT
+	elif event.is_action_pressed("ui_right") or (event is InputEventKey and event.pressed and event.keycode == KEY_D):
+		preferred_input_dir = Vector2.RIGHT
 
 func _process(delta: float) -> void:
 	var raw_input = get_input_dir()
@@ -84,7 +97,10 @@ func _process(delta: float) -> void:
 	if raw_input == Vector2.ZERO:
 		blocked_input_dir = Vector2.ZERO
 	elif raw_input == blocked_input_dir:
-		input_dir = Vector2.ZERO
+		if raw_input != current_dir and raw_input != -current_dir:
+			input_dir = current_dir
+		else:
+			input_dir = Vector2.ZERO
 	else:
 		blocked_input_dir = Vector2.ZERO
 
@@ -117,8 +133,15 @@ func get_input_dir() -> Vector2:
 		pressed_dirs.append(Vector2.LEFT)
 	if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_D):
 		pressed_dirs.append(Vector2.RIGHT)
-	if pressed_dirs.size() != 1:
+
+	if pressed_dirs.is_empty():
+		preferred_input_dir = Vector2.ZERO
 		return Vector2.ZERO
+	if pressed_dirs.size() == 1:
+		preferred_input_dir = pressed_dirs[0]
+		return pressed_dirs[0]
+	if pressed_dirs.has(preferred_input_dir):
+		return preferred_input_dir
 	return pressed_dirs[0]
 
 func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -> float:
@@ -178,7 +201,11 @@ func is_active_turn_segment() -> bool:
 func snap_head_to_pixel_grid() -> void:
 	if path.size() < 2:
 		return
-	path[-1] = Vector2(round(path[-1].x - 0.5) + 0.5, round(path[-1].y))
+	var seg = path[-1] - path[-2]
+	if abs(seg.x) > 0.001 and abs(seg.y) <= 0.001:
+		path[-1] = Vector2(round(path[-1].x - 0.5) + 0.5, path[-2].y)
+	elif abs(seg.y) > 0.001 and abs(seg.x) <= 0.001:
+		path[-1] = Vector2(path[-2].x, round(path[-1].y))
 
 func move_cat(input_dir: Vector2, step: float) -> void:
 	var head_pos = path[-1]

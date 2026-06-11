@@ -589,19 +589,58 @@ func run_multi_input_checks() -> bool:
 	drive_cat(cat, Vector2.UP, 28)
 	drive_cat(cat, Vector2.RIGHT, 20)
 
-	var path_before = cat.path.duplicate()
 	Input.action_press("ui_left")
 	Input.action_press("ui_down")
+	cat.preferred_input_dir = Vector2.DOWN
 	cat._process(1.0 / cat.speed)
 	Input.action_release("ui_left")
 	Input.action_release("ui_down")
 
-	if cat.path != path_before:
-		printerr("FAILED: simultaneous conflicting inputs should not move or turn. before=", path_before, " after=", cat.path)
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: simultaneous inputs should use the latest pressed turn direction when allowed. current_dir=", cat.current_dir, " path=", cat.path)
 		quit(1)
 		return false
-	if cat.turns_data.size() != 1:
-		printerr("FAILED: simultaneous conflicting inputs should not create extra turns. turns=", cat.turns_data.size())
+	if cat.turns_data.size() != 2:
+		printerr("FAILED: simultaneous latest allowed input should create exactly one extra turn. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+
+	cat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(1.0, -40.0),
+		Vector2(11.0, -40.0),
+	]
+	cat.current_dir = Vector2.RIGHT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	var head_before = cat.path[-1]
+	Input.action_press("ui_left")
+	Input.action_press("ui_down")
+	cat.preferred_input_dir = Vector2.DOWN
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_left")
+	Input.action_release("ui_down")
+
+	if cat.current_dir != Vector2.RIGHT:
+		printerr("FAILED: blocked latest input should keep the previous direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if cat.path[-1].x <= head_before.x:
+		printerr("FAILED: blocked latest input should continue moving forward. before=", head_before, " path=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 0:
+		printerr("FAILED: blocked latest input should not create a turn. turns=", cat.turns_data.size())
 		quit(1)
 		return false
 
