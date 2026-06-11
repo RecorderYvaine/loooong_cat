@@ -5,7 +5,9 @@ class_name LongCat
 const MIN_TURN_DIST: float = 9.0
 const TURN_CLEARANCE: float = 4.0
 const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
-const BODY_COLLISION_RADIUS: float = 12.0
+const BODY_COLLISION_HALF_WIDTH: float = 4.5
+const HEAD_COLLISION_HALF_WIDTH: float = 5.5
+const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -127,8 +129,8 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
 	return max(0.0, allowed_step)
 
 func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
-	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y)) - Vector2(BODY_COLLISION_RADIUS, BODY_COLLISION_RADIUS)
-	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(BODY_COLLISION_RADIUS, BODY_COLLISION_RADIUS)
+	var min_pos = Vector2(min(p1.x, p2.x), min(p1.y, p2.y)) - Vector2(COLLISION_CLEARANCE, COLLISION_CLEARANCE)
+	var max_pos = Vector2(max(p1.x, p2.x), max(p1.y, p2.y)) + Vector2(COLLISION_CLEARANCE, COLLISION_CLEARANCE)
 	return Rect2(min_pos, max_pos - min_pos)
 
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:

@@ -103,15 +103,15 @@ func run_blocked_turn_checks() -> bool:
 	cat.path = [
 		Vector2(0.5, 0.0),
 		Vector2(0.5, -40.0),
-		Vector2(17.0, -40.0),
-		Vector2(17.0, -10.0),
+		Vector2(1.0, -40.0),
+		Vector2(10.0, -40.0),
 	]
-	cat.current_dir = Vector2.DOWN
+	cat.current_dir = Vector2.RIGHT
 	cat.turns_data.clear()
 	cat.update_visuals()
 
 	var path_before = cat.path.duplicate()
-	cat.move_cat(Vector2.LEFT, 1.0)
+	cat.move_cat(Vector2.DOWN, 1.0)
 
 	if cat.path.size() != path_before.size():
 		printerr("FAILED: blocked turn should not append a new path point. path=", cat.path)
@@ -121,7 +121,7 @@ func run_blocked_turn_checks() -> bool:
 		printerr("FAILED: blocked turn should not move the head. path=", cat.path)
 		quit(1)
 		return false
-	if cat.current_dir != Vector2.DOWN:
+	if cat.current_dir != Vector2.RIGHT:
 		printerr("FAILED: blocked turn should preserve current direction. current_dir=", cat.current_dir)
 		quit(1)
 		return false
@@ -129,8 +129,36 @@ func run_blocked_turn_checks() -> bool:
 		printerr("FAILED: blocked turn should not create turn data. turns=", cat.turns_data.size())
 		quit(1)
 		return false
-	if cat.blocked_input_dir != Vector2.LEFT:
+	if cat.blocked_input_dir != Vector2.DOWN:
 		printerr("FAILED: blocked turn should mark input as blocked. blocked=", cat.blocked_input_dir)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+
+	cat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(2.5, -40.0),
+		Vector2(11.5, -40.0),
+	]
+	cat.current_dir = Vector2.RIGHT
+	cat.turns_data.clear()
+	cat.update_visuals()
+	cat.move_cat(Vector2.DOWN, 1.0)
+
+	if cat.path.size() != 5:
+		printerr("FAILED: 11px centered head clearance should allow turn. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: allowed clearance turn should update direction. current_dir=", cat.current_dir)
 		quit(1)
 		return false
 
@@ -154,8 +182,8 @@ func run_overlap_movement_checks() -> bool:
 	cat.path = [
 		Vector2(0.5, 0.0),
 		Vector2(100.5, 0.0),
-		Vector2(100.5, 11.0),
-		Vector2(50.5, 11.0),
+		Vector2(100.5, 9.0),
+		Vector2(50.5, 9.0),
 	]
 	cat.current_dir = Vector2.LEFT
 	cat.turns_data.clear()
