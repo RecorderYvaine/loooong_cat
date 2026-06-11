@@ -11,7 +11,6 @@ const HEAD_COLLISION_HALF_WIDTH: float = 5.5
 const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
 const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
 const REVERSE_POP_INPUT_LOCK_TIME: float = 0.12
-const CONTACT_TURN_EDGE_SLOP: float = 1.0
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -223,21 +222,22 @@ func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -
 		var p1 = path[i]
 		var p2 = path[i+1]
 		var bounds = get_segment_collision_bounds(p1, p2)
+		if is_point_in_bounds(start_pos, bounds):
+			if can_move_from_inside_segment_bounds(start_pos, dir, requested_step, p1, p2):
+				continue
+			allowed_step = 0.0
+			continue
 		
 		if dir.x != 0: 
 			if start_pos.y >= bounds.position.y and start_pos.y <= bounds.end.y:
-				if start_pos.x >= bounds.position.x and start_pos.x <= bounds.end.x:
-					allowed_step = 0.0
-				elif dir.x > 0 and start_pos.x < bounds.position.x:
+				if dir.x > 0 and start_pos.x < bounds.position.x:
 					allowed_step = min(allowed_step, bounds.position.x - start_pos.x)
 				elif dir.x < 0 and start_pos.x > bounds.end.x:
 					allowed_step = min(allowed_step, start_pos.x - bounds.end.x)
 						
 		elif dir.y != 0: 
 			if start_pos.x >= bounds.position.x and start_pos.x <= bounds.end.x:
-				if start_pos.y >= bounds.position.y and start_pos.y <= bounds.end.y:
-					allowed_step = 0.0
-				elif dir.y > 0 and start_pos.y < bounds.position.y:
+				if dir.y > 0 and start_pos.y < bounds.position.y:
 					allowed_step = min(allowed_step, bounds.position.y - start_pos.y)
 				elif dir.y < 0 and start_pos.y > bounds.end.y:
 					allowed_step = min(allowed_step, start_pos.y - bounds.end.y)
@@ -252,6 +252,14 @@ func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
 func is_point_in_bounds(pos: Vector2, bounds: Rect2) -> bool:
 	return pos.x >= bounds.position.x and pos.x <= bounds.end.x and pos.y >= bounds.position.y and pos.y <= bounds.end.y
 
+func can_move_from_inside_segment_bounds(start_pos: Vector2, dir: Vector2, step: float, p1: Vector2, p2: Vector2) -> bool:
+	var end_pos = start_pos + dir * step
+	if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
+		return false
+	if is_dir_parallel_to_segment(dir, p1, p2):
+		return false
+	return true
+
 func is_moving_deeper_into_segment_bounds(start_pos: Vector2, end_pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	return get_distance_from_segment_centerline(end_pos, p1, p2) < get_distance_from_segment_centerline(start_pos, p1, p2) - 0.001
 
@@ -263,9 +271,6 @@ func get_distance_from_segment_centerline(pos: Vector2, p1: Vector2, p2: Vector2
 
 	var center_x = (p1.x + p2.x) / 2.0
 	return abs(pos.x - center_x)
-
-func is_near_segment_collision_edge(pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
-	return get_distance_from_segment_centerline(pos, p1, p2) >= COLLISION_CLEARANCE - CONTACT_TURN_EDGE_SLOP
 
 func is_dir_parallel_to_segment(dir: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	var segment = p2 - p1
@@ -283,9 +288,7 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 		var bounds = get_segment_collision_bounds(p1, p2)
 		var starts_inside = is_point_in_bounds(start_pos, bounds)
 		if starts_inside:
-			if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
-				return false
-			if is_dir_parallel_to_segment(dir, p1, p2) and not is_near_segment_collision_edge(start_pos, p1, p2):
+			if not can_move_from_inside_segment_bounds(start_pos, dir, MIN_TURN_DIST, p1, p2):
 				return false
 			continue
 

@@ -144,8 +144,8 @@ func run_blocked_turn_checks() -> bool:
 	cat.path = [
 		Vector2(0.5, 0.0),
 		Vector2(0.5, -40.0),
-		Vector2(1.0, -40.0),
-		Vector2(5.0, -40.0),
+		Vector2(-8.5, -40.0),
+		Vector2(-4.5, -40.0),
 	]
 	cat.current_dir = Vector2.RIGHT
 	cat.turns_data.clear()
@@ -903,6 +903,13 @@ func run_overlap_movement_checks() -> bool:
 			printerr("FAILED: ", contact_case.name, " should allow contact turn. current_dir=", cat.current_dir, " path=", cat.path)
 			quit(1)
 			return false
+		var head_after_turn = cat.path[-1]
+		for i in range(12):
+			cat.move_cat(contact_case.turn, 1.0)
+		if cat.path[-1].distance_to(head_after_turn) < 6.0:
+			printerr("FAILED: ", contact_case.name, " should keep moving after contact turn. after_turn=", head_after_turn, " path=", cat.path)
+			quit(1)
+			return false
 
 		cat.path = []
 		for point in contact_case.path:
@@ -916,10 +923,18 @@ func run_overlap_movement_checks() -> bool:
 		Input.action_press(turn_action)
 		cat.preferred_input_dir = contact_case.turn
 		cat._process(1.0 / cat.speed)
-		Input.action_release(turn_action)
 
 		if cat.current_dir != contact_case.turn:
+			Input.action_release(turn_action)
 			printerr("FAILED: ", contact_case.name, " should allow contact turn through input processing. current_dir=", cat.current_dir, " path=", cat.path)
+			quit(1)
+			return false
+		head_after_turn = cat.path[-1]
+		for i in range(12):
+			cat._process(1.0 / cat.speed)
+		Input.action_release(turn_action)
+		if cat.path[-1].distance_to(head_after_turn) < 6.0:
+			printerr("FAILED: ", contact_case.name, " should keep moving after contact turn through input processing. after_turn=", head_after_turn, " path=", cat.path)
 			quit(1)
 			return false
 
