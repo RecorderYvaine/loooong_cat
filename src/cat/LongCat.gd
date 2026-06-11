@@ -4,13 +4,15 @@ class_name LongCat
 @export var speed: float = 40.0
 const MIN_TURN_DIST: float = 9.0
 const TURN_CLEARANCE: float = 4.0
+const TURN_EXIT_ADVANCE: float = 1.0
 const HIDDEN_TOP_BODY_HEAD_GAP: float = 5.0
 const BODY_COLLISION_HALF_WIDTH: float = 4.5
 const HEAD_COLLISION_HALF_WIDTH: float = 5.5
 const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
+const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
-const FACE_LOCAL = Vector2(0.5, -6.0)
+const FACE_LOCAL = Vector2(0.5, -5.5)
 
 var path: Array[Vector2] = []
 var current_dir: Vector2 = Vector2.UP
@@ -68,8 +70,11 @@ func _process(delta: float) -> void:
 	else:
 		auto_turn_dir = Vector2.ZERO
 		if queued_turn_dir != Vector2.ZERO:
-			raw_input = queued_turn_dir
-			queued_turn_dir = Vector2.ZERO
+			if get_head_segment_length() >= TURN_READY_DIST:
+				raw_input = queued_turn_dir
+				queued_turn_dir = Vector2.ZERO
+			else:
+				raw_input = current_dir
 		
 	var is_tap = false
 	if not in_turn:
@@ -92,7 +97,14 @@ func _process(delta: float) -> void:
 			
 		move_cat(input_dir, step)
 		update_head_frame(input_dir)
+
+		if queued_turn_dir != Vector2.ZERO and input_dir == current_dir and get_head_segment_length() >= TURN_READY_DIST:
+			var turn_dir = queued_turn_dir
+			queued_turn_dir = Vector2.ZERO
+			move_cat(turn_dir, max(step, 1.0))
+			update_head_frame(turn_dir)
 	else:
+		snap_head_to_pixel_grid()
 		head_sprite.frame = 0 
 
 	update_visuals()
@@ -141,6 +153,16 @@ func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 	return get_allowed_step(start_pos, dir, MIN_TURN_DIST) >= MIN_TURN_DIST
 
+func get_head_segment_length() -> float:
+	if path.size() < 2:
+		return 0.0
+	return path[-1].distance_to(path[-2])
+
+func snap_head_to_pixel_grid() -> void:
+	if path.size() < 2:
+		return
+	path[-1] = Vector2(round(path[-1].x - 0.5) + 0.5, round(path[-1].y))
+
 func move_cat(input_dir: Vector2, step: float) -> void:
 	var head_pos = path[-1]
 	var prev_pos = path[-2]
@@ -176,8 +198,8 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 				path[-1] += input_dir * step
 	else:
 		var dist_from_last_corner = head_pos.distance_to(prev_pos)
-		if dist_from_last_corner < MIN_TURN_DIST:
-			var advance = min(step, MIN_TURN_DIST - dist_from_last_corner)
+		if dist_from_last_corner < TURN_READY_DIST:
+			var advance = min(step, TURN_READY_DIST - dist_from_last_corner)
 			var allowed_advance = get_allowed_step(head_pos, seg_dir, advance)
 			path[-1] += seg_dir * allowed_advance
 			current_dir = seg_dir
@@ -253,23 +275,11 @@ func update_visuals() -> void:
 			active_corner_index = path.size() - 2
 			turn_progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
 
-	# The straight body segment now connects directly to the head. Keeping this
-	# separate sprite visible creates one-pixel protrusions after horizontal turns.
-	top_body.visible = false
+	top_body.visible = not in_turn
 
-	# 核心修正：旋转猫头组，并同时根据旋转修正位置，使本地的猫脸中心始终精确对准 path[-1]
+	# 猫头像素画只使用正交旋转；转弯动画由拐角身体帧负责，避免任意角度旋转造成拉伸。
 	var target_rotation = current_dir.angle() - (-PI/2)
-
-	if in_turn:
-		var prev_dir = (path[-2] - path[-3]).normalized()
-		if prev_dir == Vector2.ZERO: prev_dir = current_dir
-		var prev_rot = prev_dir.angle() - (-PI/2)
-
-		var diff = wrapf(target_rotation - prev_rot, -PI, PI)
-		head_group.rotation = prev_rot + diff * turn_progress
-	else:
-		head_group.rotation = target_rotation
-
+	head_group.rotation = target_rotation
 	head_group.position = path[-1] - FACE_LOCAL.rotated(head_group.rotation)
 
 	# 绘制直身子

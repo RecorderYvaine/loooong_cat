@@ -18,6 +18,8 @@ func run():
 		return
 	if not await run_early_turn_completion_checks():
 		return
+	if not await run_queued_input_process_checks():
+		return
 	if not await run_overlap_movement_checks():
 		return
 	print("ALL TESTS PASSED")
@@ -37,9 +39,22 @@ func run_turn_visual_state_checks() -> bool:
 	await process_frame
 
 	drive_cat(cat, Vector2.UP, 28)
-	drive_cat(cat, Vector2.RIGHT, 80)
+	drive_cat(cat, Vector2.RIGHT, 1)
+
+	if not assert_angle_close(cat.head_group.rotation, PI / 2.0, "Head stays cardinal during an active right turn"):
+		return false
+	if cat.top_body.visible:
+		printerr("FAILED: upper body should be hidden while turn animation is active")
+		quit(1)
+		return false
+
+	drive_cat(cat, Vector2.RIGHT, 79)
 
 	if not assert_angle_close(cat.head_group.rotation, PI / 2.0, "Head faces exactly right after a completed right turn"):
+		return false
+	if not cat.top_body.visible:
+		printerr("FAILED: upper body should be visible while moving straight")
+		quit(1)
 		return false
 	if cat.turns_data.size() != 1:
 		printerr("FAILED: expected one turn after moving right. turns=", cat.turns_data.size())
@@ -155,6 +170,17 @@ func run_blocked_turn_checks() -> bool:
 	cat.update_visuals()
 	cat.move_cat(Vector2.DOWN, 1.0)
 
+	if cat.path.size() != 4:
+		printerr("FAILED: 9px turn should auto-advance before starting. path=", cat.path)
+		quit(1)
+		return false
+	if abs(cat.path[-1].distance_to(cat.path[-2]) - cat.TURN_READY_DIST) > 0.001:
+		printerr("FAILED: 11px centered head clearance should advance to turn-ready distance. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+
 	if cat.path.size() != 5:
 		printerr("FAILED: 11px centered head clearance should allow turn. path=", cat.path)
 		quit(1)
@@ -202,11 +228,22 @@ func run_early_turn_completion_checks() -> bool:
 		quit(1)
 		return false
 	if abs(cat.path[-1].distance_to(cat.path[-2]) - cat.MIN_TURN_DIST) > 0.001:
-		printerr("FAILED: early turn should auto-advance to the minimum turn distance. path=", cat.path)
+		printerr("FAILED: early turn should first auto-advance to the minimum turn distance. path=", cat.path)
 		quit(1)
 		return false
 	if cat.turns_data.size() != 0:
 		printerr("FAILED: early turn completion should not create turn data yet. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+
+	if cat.path.size() != path_size_before:
+		printerr("FAILED: early turn should add the one-pixel turn exit before appending. path=", cat.path)
+		quit(1)
+		return false
+	if abs(cat.path[-1].distance_to(cat.path[-2]) - cat.TURN_READY_DIST) > 0.001:
+		printerr("FAILED: early turn should auto-advance to the turn-ready distance. path=", cat.path)
 		quit(1)
 		return false
 
@@ -222,6 +259,62 @@ func run_early_turn_completion_checks() -> bool:
 		return false
 	if cat.turns_data.size() != 1:
 		printerr("FAILED: queued follow-up turn should create exactly one turn. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_queued_input_process_checks() -> bool:
+	print("Running queued input process checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(8.5, -40.0),
+	]
+	cat.current_dir = Vector2.RIGHT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	Input.action_press("ui_down")
+	cat._process(1.0 / cat.speed)
+
+	if cat.path.size() != 3:
+		Input.action_release("ui_down")
+		printerr("FAILED: queued input should not append before turn-ready distance. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.RIGHT:
+		Input.action_release("ui_down")
+		printerr("FAILED: queued input should keep moving in current direction before ready. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_down")
+
+	if cat.path.size() != 4:
+		printerr("FAILED: queued input should start the next turn as soon as turn-ready distance is reached. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: queued input should update direction on the same frame. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if cat.queued_turn_dir != Vector2.ZERO:
+		printerr("FAILED: queued input should be consumed after starting the turn. queued=", cat.queued_turn_dir)
 		quit(1)
 		return false
 
