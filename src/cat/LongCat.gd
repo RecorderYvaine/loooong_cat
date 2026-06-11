@@ -11,6 +11,7 @@ const HEAD_COLLISION_HALF_WIDTH: float = 5.5
 const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
 const TURN_READY_DIST: float = MIN_TURN_DIST + TURN_EXIT_ADVANCE
 const REVERSE_POP_INPUT_LOCK_TIME: float = 0.12
+const CONTACT_TURN_EDGE_SLOP: float = 1.0
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
 const FACE_LOCAL = Vector2(0.5, -5.5)
@@ -252,13 +253,19 @@ func is_point_in_bounds(pos: Vector2, bounds: Rect2) -> bool:
 	return pos.x >= bounds.position.x and pos.x <= bounds.end.x and pos.y >= bounds.position.y and pos.y <= bounds.end.y
 
 func is_moving_deeper_into_segment_bounds(start_pos: Vector2, end_pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
+	return get_distance_from_segment_centerline(end_pos, p1, p2) < get_distance_from_segment_centerline(start_pos, p1, p2) - 0.001
+
+func get_distance_from_segment_centerline(pos: Vector2, p1: Vector2, p2: Vector2) -> float:
 	var segment = p2 - p1
 	if abs(segment.x) >= abs(segment.y):
 		var center_y = (p1.y + p2.y) / 2.0
-		return abs(end_pos.y - center_y) < abs(start_pos.y - center_y) - 0.001
+		return abs(pos.y - center_y)
 
 	var center_x = (p1.x + p2.x) / 2.0
-	return abs(end_pos.x - center_x) < abs(start_pos.x - center_x) - 0.001
+	return abs(pos.x - center_x)
+
+func is_near_segment_collision_edge(pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
+	return get_distance_from_segment_centerline(pos, p1, p2) >= COLLISION_CLEARANCE - CONTACT_TURN_EDGE_SLOP
 
 func is_dir_parallel_to_segment(dir: Vector2, p1: Vector2, p2: Vector2) -> bool:
 	var segment = p2 - p1
@@ -278,7 +285,7 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 		if starts_inside:
 			if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
 				return false
-			if is_dir_parallel_to_segment(dir, p1, p2):
+			if is_dir_parallel_to_segment(dir, p1, p2) and not is_near_segment_collision_edge(start_pos, p1, p2):
 				return false
 			continue
 

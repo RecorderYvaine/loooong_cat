@@ -145,7 +145,7 @@ func run_blocked_turn_checks() -> bool:
 		Vector2(0.5, 0.0),
 		Vector2(0.5, -40.0),
 		Vector2(1.0, -40.0),
-		Vector2(10.0, -40.0),
+		Vector2(5.0, -40.0),
 	]
 	cat.current_dir = Vector2.RIGHT
 	cat.turns_data.clear()
@@ -856,6 +856,73 @@ func run_overlap_movement_checks() -> bool:
 		quit(1)
 		return false
 
+	var contact_cases = [
+		{
+			"name": "horizontal contact below turns down",
+			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, 1.0), Vector2(15.5, 1.0)],
+			"current": Vector2.LEFT,
+			"turn": Vector2.DOWN,
+		},
+		{
+			"name": "horizontal contact above turns up",
+			"path": [Vector2(0.5, 0.0), Vector2(30.5, 0.0), Vector2(30.5, -1.0), Vector2(15.5, -1.0)],
+			"current": Vector2.LEFT,
+			"turn": Vector2.UP,
+		},
+		{
+			"name": "vertical contact left side turns left",
+			"path": [Vector2(50.5, 0.0), Vector2(50.5, -40.0), Vector2(41.5, -40.0), Vector2(41.5, -20.0)],
+			"current": Vector2.DOWN,
+			"turn": Vector2.LEFT,
+		},
+		{
+			"name": "vertical contact right side turns right",
+			"path": [Vector2(50.5, 0.0), Vector2(50.5, -40.0), Vector2(59.5, -40.0), Vector2(59.5, -20.0)],
+			"current": Vector2.DOWN,
+			"turn": Vector2.RIGHT,
+		},
+	]
+
+	for contact_case in contact_cases:
+		cat.path = []
+		for point in contact_case.path:
+			cat.path.append(point)
+		cat.current_dir = contact_case.current
+		cat.turns_data.clear()
+		cat.update_visuals()
+
+		head_before = cat.path[-1]
+		cat.move_cat(cat.current_dir, 1.0)
+		if cat.path[-1] != head_before:
+			printerr("FAILED: ", contact_case.name, " should not keep moving forward into contact. path=", cat.path)
+			quit(1)
+			return false
+
+		cat.move_cat(contact_case.turn, 1.0)
+		if cat.current_dir != contact_case.turn:
+			printerr("FAILED: ", contact_case.name, " should allow contact turn. current_dir=", cat.current_dir, " path=", cat.path)
+			quit(1)
+			return false
+
+		cat.path = []
+		for point in contact_case.path:
+			cat.path.append(point)
+		cat.current_dir = contact_case.current
+		cat.turns_data.clear()
+		cat.update_visuals()
+		release_all_test_inputs()
+
+		var turn_action = action_for_dir(contact_case.turn)
+		Input.action_press(turn_action)
+		cat.preferred_input_dir = contact_case.turn
+		cat._process(1.0 / cat.speed)
+		Input.action_release(turn_action)
+
+		if cat.current_dir != contact_case.turn:
+			printerr("FAILED: ", contact_case.name, " should allow contact turn through input processing. current_dir=", cat.current_dir, " path=", cat.path)
+			quit(1)
+			return false
+
 	cat.path = [
 		Vector2(0.5, 0.0),
 		Vector2(30.5, 0.0),
@@ -904,6 +971,15 @@ func release_all_test_inputs() -> void:
 	Input.action_release("ui_down")
 	Input.action_release("ui_left")
 	Input.action_release("ui_right")
+
+func action_for_dir(dir: Vector2) -> StringName:
+	if dir == Vector2.UP:
+		return &"ui_up"
+	if dir == Vector2.DOWN:
+		return &"ui_down"
+	if dir == Vector2.LEFT:
+		return &"ui_left"
+	return &"ui_right"
 
 func drive_cat(cat: LongCat, dir: Vector2, pixels: int) -> void:
 	for i in range(pixels):
