@@ -16,6 +16,8 @@ func run():
 		return
 	if not await run_blocked_turn_checks():
 		return
+	if not await run_early_turn_completion_checks():
+		return
 	if not await run_overlap_movement_checks():
 		return
 	print("ALL TESTS PASSED")
@@ -159,6 +161,67 @@ func run_blocked_turn_checks() -> bool:
 		return false
 	if cat.current_dir != Vector2.DOWN:
 		printerr("FAILED: allowed clearance turn should update direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_early_turn_completion_checks() -> bool:
+	print("Running early turn completion checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(8.5, -40.0),
+	]
+	cat.current_dir = Vector2.RIGHT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	var path_size_before = cat.path.size()
+	cat.move_cat(Vector2.DOWN, 1.0)
+
+	if cat.path.size() != path_size_before:
+		printerr("FAILED: early turn should complete the current segment before appending. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.RIGHT:
+		printerr("FAILED: early turn completion should preserve current direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if abs(cat.path[-1].distance_to(cat.path[-2]) - cat.MIN_TURN_DIST) > 0.001:
+		printerr("FAILED: early turn should auto-advance to the minimum turn distance. path=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 0:
+		printerr("FAILED: early turn completion should not create turn data yet. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.DOWN, 1.0)
+
+	if cat.path.size() != path_size_before + 1:
+		printerr("FAILED: queued follow-up turn should start immediately after auto-advance. path=", cat.path)
+		quit(1)
+		return false
+	if cat.current_dir != Vector2.DOWN:
+		printerr("FAILED: queued follow-up turn should update direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 1:
+		printerr("FAILED: queued follow-up turn should create exactly one turn. turns=", cat.turns_data.size())
 		quit(1)
 		return false
 

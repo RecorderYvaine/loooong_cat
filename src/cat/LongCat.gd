@@ -10,7 +10,7 @@ const HEAD_COLLISION_HALF_WIDTH: float = 5.5
 const COLLISION_CLEARANCE: float = BODY_COLLISION_HALF_WIDTH + HEAD_COLLISION_HALF_WIDTH
 
 # 以 HeadGroup 节点原点为基准，提取猫脸中心点作为旋转与移动核心
-const FACE_LOCAL = Vector2(0.5, -5.5)
+const FACE_LOCAL = Vector2(0.5, -6.0)
 
 var path: Array[Vector2] = []
 var current_dir: Vector2 = Vector2.UP
@@ -30,6 +30,7 @@ var turns_data: Array[Dictionary] = []
 var blocked_input_dir: Vector2 = Vector2.ZERO
 var prev_raw_input: Vector2 = Vector2.ZERO
 var auto_turn_dir: Vector2 = Vector2.ZERO
+var queued_turn_dir: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	turn_segments.position = Vector2.ZERO
@@ -40,9 +41,7 @@ func _ready() -> void:
 	var start_point = bottom_sprite.position + Vector2(4.5, 0.0)
 	
 	path.append(start_point)
-	# 初始状态下猫没有中间身子，直接计算脸的绝对位置：
-	# 初始 HeadGroup 位于 (0, -2.5)。加上脸部偏移 (0.5, -5.5) = (0.5, -8.0)
-	# 距离起点 (0.5, 0.0) 正好是 8 个像素的距离，完美对接！
+	# 初始状态下猫没有中间身子，直接计算脸的绝对位置。
 	path.append(start_point + Vector2(0, -8.0))
 	current_dir = Vector2.UP
 	update_visuals()
@@ -58,13 +57,19 @@ func _process(delta: float) -> void:
 			in_turn = true
 			
 	if in_turn:
-		if raw_input == current_dir or raw_input == -current_dir:
+		if raw_input != Vector2.ZERO and raw_input != current_dir and raw_input != -current_dir:
+			queued_turn_dir = raw_input
+			auto_turn_dir = current_dir
+		elif raw_input == current_dir or raw_input == -current_dir:
 			auto_turn_dir = raw_input
 		elif auto_turn_dir != current_dir and auto_turn_dir != -current_dir:
 			auto_turn_dir = current_dir
 		raw_input = auto_turn_dir
 	else:
 		auto_turn_dir = Vector2.ZERO
+		if queued_turn_dir != Vector2.ZERO:
+			raw_input = queued_turn_dir
+			queued_turn_dir = Vector2.ZERO
 		
 	var is_tap = false
 	if not in_turn:
@@ -171,35 +176,43 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 				path[-1] += input_dir * step
 	else:
 		var dist_from_last_corner = head_pos.distance_to(prev_pos)
-		if dist_from_last_corner >= MIN_TURN_DIST:
-			if not can_start_turn(head_pos, input_dir):
+		if dist_from_last_corner < MIN_TURN_DIST:
+			var advance = min(step, MIN_TURN_DIST - dist_from_last_corner)
+			var allowed_advance = get_allowed_step(head_pos, seg_dir, advance)
+			path[-1] += seg_dir * allowed_advance
+			current_dir = seg_dir
+			if allowed_advance < advance:
 				blocked_input_dir = input_dir
-				return
-			
-			var allowed = get_allowed_step(head_pos, input_dir, step)
-			if allowed > 0.0:
-				var prev_dir = seg_dir
-				var cross = prev_dir.x * input_dir.y - prev_dir.y * input_dir.x
-				
-				path.append(head_pos)
-				current_dir = input_dir
-				path[-1] += input_dir * allowed
-				
-				var turn_sprite = Sprite2D.new()
-				turn_sprite.texture = turn_tex
-				turn_sprite.region_enabled = true
-				turn_sprite.region_rect = Rect2(0, 9, 63, 9)
-				
-				if cross > 0:
-					turn_sprite.flip_h = false 
-				else:
-					turn_sprite.flip_h = true
-				
-				turn_sprite.hframes = 7
-				turn_sprite.position = pixel_align_center(head_pos)
-				turn_sprite.rotation = prev_dir.angle() + (PI/2)
-				turn_segments.add_child(turn_sprite)
-				turns_data.append({"node": turn_sprite})
+			return
+
+		if not can_start_turn(head_pos, input_dir):
+			blocked_input_dir = input_dir
+			return
+
+		var allowed = get_allowed_step(head_pos, input_dir, step)
+		if allowed > 0.0:
+			var prev_dir = seg_dir
+			var cross = prev_dir.x * input_dir.y - prev_dir.y * input_dir.x
+
+			path.append(head_pos)
+			current_dir = input_dir
+			path[-1] += input_dir * allowed
+
+			var turn_sprite = Sprite2D.new()
+			turn_sprite.texture = turn_tex
+			turn_sprite.region_enabled = true
+			turn_sprite.region_rect = Rect2(0, 9, 63, 9)
+
+			if cross > 0:
+				turn_sprite.flip_h = false
+			else:
+				turn_sprite.flip_h = true
+
+			turn_sprite.hframes = 7
+			turn_sprite.position = pixel_align_center(head_pos)
+			turn_sprite.rotation = prev_dir.angle() + (PI/2)
+			turn_segments.add_child(turn_sprite)
+			turns_data.append({"node": turn_sprite})
 
 func pixel_align_center(pos: Vector2) -> Vector2:
 	return Vector2(floor(pos.x) + 0.5, floor(pos.y) + 0.5)
