@@ -108,11 +108,18 @@ func _process(delta: float) -> void:
 	update_visuals()
 
 func get_input_dir() -> Vector2:
-	if Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W): return Vector2.UP
-	if Input.is_action_pressed("ui_down") or Input.is_key_pressed(KEY_S): return Vector2.DOWN
-	if Input.is_action_pressed("ui_left") or Input.is_key_pressed(KEY_A): return Vector2.LEFT
-	if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_D): return Vector2.RIGHT
-	return Vector2.ZERO
+	var pressed_dirs: Array[Vector2] = []
+	if Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W):
+		pressed_dirs.append(Vector2.UP)
+	if Input.is_action_pressed("ui_down") or Input.is_key_pressed(KEY_S):
+		pressed_dirs.append(Vector2.DOWN)
+	if Input.is_action_pressed("ui_left") or Input.is_key_pressed(KEY_A):
+		pressed_dirs.append(Vector2.LEFT)
+	if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_D):
+		pressed_dirs.append(Vector2.RIGHT)
+	if pressed_dirs.size() != 1:
+		return Vector2.ZERO
+	return pressed_dirs[0]
 
 func get_allowed_step(start_pos: Vector2, dir: Vector2, requested_step: float) -> float:
 	var allowed_step = requested_step
@@ -203,7 +210,9 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 					if last_turn.node:
 						last_turn.node.queue_free()
 
-				blocked_input_dir = input_dir
+				blocked_input_dir = Vector2.ZERO
+				auto_turn_dir = Vector2.ZERO
+				queued_turn_dir = Vector2.ZERO
 			else:
 				path[-1] += input_dir * step
 	else:
@@ -219,6 +228,8 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 
 		if not can_start_turn(head_pos, input_dir):
 			blocked_input_dir = input_dir
+			auto_turn_dir = Vector2.ZERO
+			queued_turn_dir = Vector2.ZERO
 			return
 
 		var allowed = get_allowed_step(head_pos, input_dir, step)
@@ -245,6 +256,10 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 			turn_sprite.rotation = prev_dir.angle() + (PI/2)
 			turn_segments.add_child(turn_sprite)
 			turns_data.append({"node": turn_sprite})
+		else:
+			blocked_input_dir = input_dir
+			auto_turn_dir = Vector2.ZERO
+			queued_turn_dir = Vector2.ZERO
 
 func pixel_align_center(pos: Vector2) -> Vector2:
 	return Vector2(floor(pos.x) + 0.5, floor(pos.y) + 0.5)
@@ -268,6 +283,10 @@ func get_turn_clearance(progress: float) -> float:
 	return round(TURN_CLEARANCE * clamp(progress, 0.0, 1.0))
 
 func update_head_frame(input_dir: Vector2) -> void:
+	if is_active_turn_segment():
+		head_sprite.frame = 3
+		return
+
 	var seg_dir = current_dir
 	if path.size() > 1:
 		seg_dir = (path[-1] - path[-2]).normalized()

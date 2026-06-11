@@ -26,6 +26,10 @@ func run():
 		return
 	if not await run_reverse_after_collision_checks():
 		return
+	if not await run_reverse_active_turn_checks():
+		return
+	if not await run_multi_input_checks():
+		return
 	if not await run_overlap_movement_checks():
 		return
 	print("ALL TESTS PASSED")
@@ -164,6 +168,10 @@ func run_blocked_turn_checks() -> bool:
 		return false
 	if cat.turns_data.size() != 0:
 		printerr("FAILED: blocked turn should not create turn data. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+	if cat.turn_segments.get_child_count() != 0:
+		printerr("FAILED: blocked turn should not create turn sprites. children=", cat.turn_segments.get_child_count())
 		quit(1)
 		return false
 	if cat.blocked_input_dir != Vector2.DOWN:
@@ -502,6 +510,98 @@ func run_reverse_after_collision_checks() -> bool:
 		return false
 	if not cat.top_body.visible:
 		printerr("FAILED: upper body should stay visible on short collinear reverse segment")
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_reverse_active_turn_checks() -> bool:
+	print("Running reverse active turn checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	drive_cat(cat, Vector2.UP, 28)
+	drive_cat(cat, Vector2.RIGHT, 1)
+
+	if not cat.is_active_turn_segment():
+		printerr("FAILED: expected active turn before reversing. path=", cat.path)
+		quit(1)
+		return false
+
+	Input.action_press("ui_left")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_left")
+
+	if cat.is_active_turn_segment():
+		printerr("FAILED: reverse should retract the active turn segment. path=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 0:
+		printerr("FAILED: reversing active turn should remove turn data. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+	if cat.blocked_input_dir != Vector2.ZERO:
+		printerr("FAILED: reversing active turn should not leave blocked input. blocked=", cat.blocked_input_dir)
+		quit(1)
+		return false
+	if cat.head_sprite.frame == 4:
+		printerr("FAILED: active turn reverse should not leave the flipped reverse head frame")
+		quit(1)
+		return false
+
+	var length_before = cat.get_head_segment_length()
+	Input.action_press("ui_down")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_down")
+
+	if cat.get_head_segment_length() >= length_before:
+		printerr("FAILED: after retracting a turn, backing along previous segment should keep working. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_multi_input_checks() -> bool:
+	print("Running multi-input checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	drive_cat(cat, Vector2.UP, 28)
+	drive_cat(cat, Vector2.RIGHT, 20)
+
+	var path_before = cat.path.duplicate()
+	Input.action_press("ui_left")
+	Input.action_press("ui_down")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_left")
+	Input.action_release("ui_down")
+
+	if cat.path != path_before:
+		printerr("FAILED: simultaneous conflicting inputs should not move or turn. before=", path_before, " after=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 1:
+		printerr("FAILED: simultaneous conflicting inputs should not create extra turns. turns=", cat.turns_data.size())
 		quit(1)
 		return false
 
