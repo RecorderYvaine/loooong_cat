@@ -51,12 +51,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var raw_input = get_input_dir()
 	
-	var in_turn = false
-	var head_dist = 0.0
-	if path.size() > 2:
-		head_dist = path[-1].distance_to(path[-2])
-		if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
-			in_turn = true
+	var in_turn = is_active_turn_segment()
+	var head_dist = get_head_segment_length()
 			
 	if in_turn:
 		if raw_input != Vector2.ZERO and raw_input != current_dir and raw_input != -current_dir:
@@ -159,6 +155,18 @@ func get_head_segment_length() -> float:
 	if path.size() < 2:
 		return 0.0
 	return path[-1].distance_to(path[-2])
+
+func is_active_turn_segment() -> bool:
+	if path.size() <= 2:
+		return false
+	var head_dist = get_head_segment_length()
+	if head_dist < 0.0 or head_dist >= MIN_TURN_DIST:
+		return false
+	var incoming_dir = (path[-2] - path[-3]).normalized()
+	var outgoing_dir = (path[-1] - path[-2]).normalized()
+	if incoming_dir == Vector2.ZERO or outgoing_dir == Vector2.ZERO:
+		return false
+	return abs(incoming_dir.dot(outgoing_dir)) < 0.001
 
 func snap_head_to_pixel_grid() -> void:
 	if path.size() < 2:
@@ -273,16 +281,14 @@ func update_head_frame(input_dir: Vector2) -> void:
 		head_sprite.frame = 3
 
 func update_visuals() -> void:
-	var in_turn = false
+	var in_turn = is_active_turn_segment()
 	var head_dist = 0.0
 	var turn_progress = 1.0
 	var active_corner_index = -1
-	if path.size() > 2:
+	if in_turn:
 		head_dist = path[-1].distance_to(path[-2])
-		if head_dist >= 0.0 and head_dist < MIN_TURN_DIST:
-			in_turn = true
-			active_corner_index = path.size() - 2
-			turn_progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
+		active_corner_index = path.size() - 2
+		turn_progress = clamp(head_dist / MIN_TURN_DIST, 0.0, 1.0)
 
 	top_body.visible = not in_turn
 

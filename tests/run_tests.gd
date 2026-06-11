@@ -24,6 +24,8 @@ func run():
 		return
 	if not await run_reverse_during_turn_exit_checks():
 		return
+	if not await run_reverse_after_collision_checks():
+		return
 	if not await run_overlap_movement_checks():
 		return
 	print("ALL TESTS PASSED")
@@ -440,6 +442,66 @@ func run_reverse_during_turn_exit_checks() -> bool:
 		return false
 	if cat.current_dir != Vector2.RIGHT:
 		printerr("FAILED: partial reverse during turn exit should keep segment direction. current_dir=", cat.current_dir)
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
+	return true
+
+func run_reverse_after_collision_checks() -> bool:
+	print("Running reverse after collision checks...")
+	var cat_scene = load("res://src/cat/LongCat.tscn")
+	if cat_scene == null:
+		printerr("FAILED to load LongCat.tscn")
+		quit(1)
+		return false
+
+	var cat: LongCat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(100.5, 0.0),
+		Vector2(100.5, 9.0),
+		Vector2(50.5, 9.0),
+	]
+	cat.current_dir = Vector2.LEFT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	Input.action_press("ui_left")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_left")
+
+	var blocked_head = cat.path[-1]
+	Input.action_press("ui_right")
+	cat._process(1.0 / cat.speed)
+	Input.action_release("ui_right")
+
+	if cat.path[-1].x <= blocked_head.x:
+		printerr("FAILED: reverse after body collision should move away from collision. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.path = [
+		Vector2(0.5, 0.0),
+		Vector2(0.5, -40.0),
+		Vector2(1.0, -40.0),
+		Vector2(9.0, -40.0),
+	]
+	cat.current_dir = Vector2.RIGHT
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	if cat.is_active_turn_segment():
+		printerr("FAILED: short collinear reverse segment should not be treated as an active turn. path=", cat.path)
+		quit(1)
+		return false
+	if not cat.top_body.visible:
+		printerr("FAILED: upper body should stay visible on short collinear reverse segment")
 		quit(1)
 		return false
 
