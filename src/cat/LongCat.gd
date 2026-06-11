@@ -34,6 +34,7 @@ var prev_raw_input: Vector2 = Vector2.ZERO
 var auto_turn_dir: Vector2 = Vector2.ZERO
 var queued_turn_dir: Vector2 = Vector2.ZERO
 var preferred_input_dir: Vector2 = Vector2.ZERO
+var retract_active_turn_on_release: bool = false
 
 func _ready() -> void:
 	turn_segments.position = Vector2.ZERO
@@ -70,17 +71,23 @@ func _process(delta: float) -> void:
 			
 	if in_turn:
 		if raw_input == Vector2.ZERO:
-			auto_turn_dir = current_dir
+			if retract_active_turn_on_release:
+				auto_turn_dir = -current_dir
+			else:
+				auto_turn_dir = current_dir
 		elif raw_input != current_dir and raw_input != -current_dir:
 			queued_turn_dir = raw_input
 			auto_turn_dir = current_dir
+			retract_active_turn_on_release = false
 		elif raw_input == current_dir or raw_input == -current_dir:
 			auto_turn_dir = raw_input
+			retract_active_turn_on_release = raw_input == -current_dir
 		elif auto_turn_dir != current_dir and auto_turn_dir != -current_dir:
 			auto_turn_dir = current_dir
 		raw_input = auto_turn_dir
 	else:
 		auto_turn_dir = Vector2.ZERO
+		retract_active_turn_on_release = false
 		if queued_turn_dir != Vector2.ZERO:
 			if get_head_segment_length() >= TURN_READY_DIST:
 				raw_input = queued_turn_dir
@@ -225,6 +232,15 @@ func get_segment_collision_bounds(p1: Vector2, p2: Vector2) -> Rect2:
 func is_point_in_bounds(pos: Vector2, bounds: Rect2) -> bool:
 	return pos.x >= bounds.position.x and pos.x <= bounds.end.x and pos.y >= bounds.position.y and pos.y <= bounds.end.y
 
+func is_moving_deeper_into_segment_bounds(start_pos: Vector2, end_pos: Vector2, p1: Vector2, p2: Vector2) -> bool:
+	var segment = p2 - p1
+	if abs(segment.x) >= abs(segment.y):
+		var center_y = (p1.y + p2.y) / 2.0
+		return abs(end_pos.y - center_y) < abs(start_pos.y - center_y) - 0.001
+
+	var center_x = (p1.x + p2.x) / 2.0
+	return abs(end_pos.x - center_x) < abs(start_pos.x - center_x) - 0.001
+
 func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 	var end_pos = start_pos + dir * MIN_TURN_DIST
 	var check_points = max(0, path.size() - 3)
@@ -236,6 +252,8 @@ func can_start_turn(start_pos: Vector2, dir: Vector2) -> bool:
 		var starts_inside = is_point_in_bounds(start_pos, bounds)
 		if starts_inside:
 			if is_point_in_bounds(end_pos, bounds):
+				return false
+			if is_moving_deeper_into_segment_bounds(start_pos, end_pos, p1, p2):
 				return false
 			continue
 
@@ -288,6 +306,8 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 	
 	if input_dir == seg_dir:
 		var allowed = get_allowed_step(path[-1], input_dir, step)
+		if allowed <= 0.0 and is_active_turn_segment() and can_start_turn(path[-1], input_dir):
+			allowed = step
 		path[-1] += input_dir * allowed
 		current_dir = input_dir
 	elif input_dir == -seg_dir:
@@ -300,7 +320,7 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 				path[-1] += input_dir * step
 		else:
 			var dist_to_prev = path[-1].distance_to(path[-2])
-			if dist_to_prev <= step:
+			if dist_to_prev <= step + 0.001:
 				path.pop_back()
 				path[-1] = prev_pos
 				current_dir = (path[-1] - path[-2]).normalized()
@@ -313,8 +333,11 @@ func move_cat(input_dir: Vector2, step: float) -> void:
 				blocked_input_dir = Vector2.ZERO
 				auto_turn_dir = Vector2.ZERO
 				queued_turn_dir = Vector2.ZERO
+				retract_active_turn_on_release = false
 			else:
 				path[-1] += input_dir * step
+				if is_active_turn_segment():
+					retract_active_turn_on_release = true
 	else:
 		var dist_from_last_corner = head_pos.distance_to(prev_pos)
 		if dist_from_last_corner < TURN_READY_DIST:

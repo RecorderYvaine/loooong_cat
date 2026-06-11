@@ -571,6 +571,48 @@ func run_reverse_active_turn_checks() -> bool:
 
 	cat.queue_free()
 	await process_frame
+
+	cat = cat_scene.instantiate()
+	root.add_child(cat)
+	await process_frame
+	await process_frame
+
+	drive_cat(cat, Vector2.UP, 28)
+	drive_cat(cat, Vector2.RIGHT, 12)
+
+	if cat.path.size() != 3:
+		printerr("FAILED: expected completed right turn before reverse-release check. path=", cat.path)
+		quit(1)
+		return false
+
+	Input.action_press("ui_left")
+	var safety = 16
+	while safety > 0 and not cat.is_active_turn_segment():
+		cat._process(1.0 / cat.speed)
+		safety -= 1
+	Input.action_release("ui_left")
+
+	if not cat.is_active_turn_segment():
+		printerr("FAILED: reverse should enter active turn before release. path=", cat.path)
+		quit(1)
+		return false
+
+	safety = 16
+	while safety > 0 and cat.path.size() == 3:
+		cat._process(1.0 / cat.speed)
+		safety -= 1
+
+	if cat.path.size() != 2:
+		printerr("FAILED: released reverse-entered turn should auto-retract and remove the turn. path=", cat.path)
+		quit(1)
+		return false
+	if cat.turns_data.size() != 0:
+		printerr("FAILED: released reverse-entered turn should remove turn data. turns=", cat.turns_data.size())
+		quit(1)
+		return false
+
+	cat.queue_free()
+	await process_frame
 	return true
 
 func run_multi_input_checks() -> bool:
@@ -744,6 +786,33 @@ func run_overlap_movement_checks() -> bool:
 		return false
 	if cat.path.size() != 5:
 		printerr("FAILED: turn out of overlapped body should append a turn point. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.path = [
+		Vector2(50.5, 0.0),
+		Vector2(50.5, -40.0),
+		Vector2(41.5, -40.0),
+		Vector2(41.5, -20.0),
+	]
+	cat.current_dir = Vector2.DOWN
+	cat.turns_data.clear()
+	cat.update_visuals()
+
+	head_before = cat.path[-1]
+	cat.move_cat(Vector2.DOWN, 1.0)
+	if cat.path[-1] != head_before:
+		printerr("FAILED: head resting on body should not keep moving forward into it. path=", cat.path)
+		quit(1)
+		return false
+
+	cat.move_cat(Vector2.LEFT, 1.0)
+	if cat.current_dir != Vector2.LEFT:
+		printerr("FAILED: head resting on body should be able to turn left away from the body when side space is clear. current_dir=", cat.current_dir, " path=", cat.path)
+		quit(1)
+		return false
+	if cat.path.size() != 5:
+		printerr("FAILED: left turn from body contact should append a turn point. path=", cat.path)
 		quit(1)
 		return false
 
